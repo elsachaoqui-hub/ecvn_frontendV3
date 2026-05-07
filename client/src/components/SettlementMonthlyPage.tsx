@@ -667,13 +667,13 @@ export default function SettlementMonthlyPage() {
                         <span>發電端存入（10:00-14:00）</span>
                         <span>{storageChargeFromGenerationTotal}</span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between text-emerald-700">
-                        <span>轉移成功總量（進入儲能）</span>
-                        <span>{storageChargeSuccessTotal}</span>
-                      </div>
                       <div className="mt-1 flex items-center justify-between text-indigo-700">
                         <span>儲能餘額存入（近 7 天累加）</span>
                         <span>{storageChargeFromBalance7dTotal}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-emerald-700">
+                        <span>轉移成功總量（進入儲能）</span>
+                        <span>{storageChargeSuccessTotal}</span>
                       </div>
                     </div>
 
@@ -683,8 +683,8 @@ export default function SettlementMonthlyPage() {
                           <tr>
                             <th className="px-2 py-1 text-left">時間（10:00-14:00）</th>
                             <th className="px-2 py-1 text-right">發電端存入量</th>
-                            <th className="px-2 py-1 text-right">轉移成功量</th>
                             <th className="px-2 py-1 text-right">儲能餘額存入量（7天累加）</th>
+                            <th className="px-2 py-1 text-right">轉移成功量</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -692,15 +692,15 @@ export default function SettlementMonthlyPage() {
                             <tr key={`${row.time}-storage-charge`} className="border-t border-slate-200 bg-white">
                               <td className="px-2 py-1 font-bold">{row.time}</td>
                               <td className="px-2 py-1 text-right">{row.fromGeneration}</td>
-                              <td className="px-2 py-1 text-right font-bold text-emerald-700">{row.transferSuccess}</td>
                               <td className="px-2 py-1 text-right text-indigo-700">{row.fromBalance}</td>
+                              <td className="px-2 py-1 text-right font-bold text-emerald-700">{row.transferSuccess}</td>
                             </tr>
                           ))}
                           <tr className="border-t border-slate-300 bg-slate-100 font-black text-slate-900">
                             <td className="px-2 py-1">合計</td>
                             <td className="px-2 py-1 text-right">{storageChargeFromGenerationTotal}</td>
-                            <td className="px-2 py-1 text-right text-emerald-700">{storageChargeSuccessTotal}</td>
                             <td className="px-2 py-1 text-right text-indigo-700">{storageChargeFromBalance7dTotal}</td>
+                            <td className="px-2 py-1 text-right text-emerald-700">{storageChargeSuccessTotal}</td>
                           </tr>
                         </tbody>
                       </table>
