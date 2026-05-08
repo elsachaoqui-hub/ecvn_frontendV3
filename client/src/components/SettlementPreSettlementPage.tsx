@@ -287,6 +287,13 @@ export default function SettlementPreSettlementPage({
     return ascRows.reverse();
   }, []);
 
+  /** 桑基明細表可用日期範圍（供 RE 累計預設區間） */
+  const reDataDateSpan = useMemo(() => {
+    if (!sankeyDetailRows.length) return { start: '', end: '' };
+    const asc = [...sankeyDetailRows].sort((a, b) => a.dateLabel.localeCompare(b.dateLabel));
+    return { start: asc[0].dateLabel, end: asc[asc.length - 1].dateLabel };
+  }, [sankeyDetailRows]);
+
   const sankeyDisplayDateText = useMemo(() => `日期：${selectedSankeyDate}`, [selectedSankeyDate]);
 
   const filteredSankeyDetailRows = useMemo(() => {
@@ -324,6 +331,42 @@ export default function SettlementPreSettlementPage({
   const [showSankeyTable, setShowSankeyTable] = useState(false);
   const [showAllocationTable, setShowAllocationTable] = useState(false);
   const [showStorageTable, setShowStorageTable] = useState(false);
+  /** RE 年度目標（%）；累計區間起迄可自訂，預設帶入資料可用範圍 */
+  const [reAnnualTargetPct, setReAnnualTargetPct] = useState(90);
+  const [reCumStart, setReCumStart] = useState('');
+  const [reCumEnd, setReCumEnd] = useState('');
+
+  const reRangeStart = reCumStart || reDataDateSpan.start;
+  const reRangeEnd = reCumEnd || reDataDateSpan.end;
+
+  const cumulativeReForRange = useMemo(() => {
+    if (!reRangeStart || !reRangeEnd) {
+      return { sumMatched: 0, sumLoad: 0, rePct: 0, dayCount: 0 };
+    }
+    const start = new Date(`${reRangeStart}T00:00:00`);
+    const end = new Date(`${reRangeEnd}T23:59:59`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return { sumMatched: 0, sumLoad: 0, rePct: 0, dayCount: 0 };
+    }
+    const rows = sankeyDetailRows.filter((row) => {
+      const t = new Date(`${row.dateLabel.slice(0, 10)}T12:00:00`).getTime();
+      return t >= start.getTime() && t <= end.getTime();
+    });
+    const sumMatched = rows.reduce((s, r) => s + r.totalMatched, 0);
+    const sumLoad = rows.reduce((s, r) => s + r.load, 0);
+    const rePct = sumLoad > 0 ? (sumMatched / sumLoad) * 100 : 0;
+    return {
+      sumMatched: Number(sumMatched.toFixed(1)),
+      sumLoad: Number(sumLoad.toFixed(1)),
+      rePct: Number(rePct.toFixed(2)),
+      dayCount: rows.length,
+    };
+  }, [sankeyDetailRows, reRangeStart, reRangeEnd]);
+
+  const reVsTargetDiff = Number((cumulativeReForRange.rePct - reAnnualTargetPct).toFixed(2));
+
+  const reAchievementTooltip =
+    'RE 累計達成率計算方式：將下方自訂「起日～迄日」區間內，每日「總匹配量（儲能提領＋合約匹配量）」加總為分子；同一區間內每日「用電端」用電量加總為分母；達成率＝分子÷分母×100%。數值單位為示範資料之 kWh。';
 
   const effectiveGranularity: SankeyGranularity = styleMode === 'ab' ? granularity : cExpanded ? 'detail24h' : 'summary4h';
   const activeHourlyRows = useMemo(() => buildHourlyRowsByDate(selectedSankeyDate), [selectedSankeyDate]);
@@ -578,6 +621,92 @@ export default function SettlementPreSettlementPage({
 
   return (
     <div className="space-y-6 pb-8 text-slate-800">
+      {pageHeading.startsWith('4.1') ? (
+        <section className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-white p-5 shadow-sm">
+          <h3 className="text-base font-bold text-slate-900">RE 年度目標與累計達成率</h3>
+          <p className="mt-1 text-xs font-semibold text-slate-600">
+            自訂統計區間後，以區間內累計成功匹配量與累計用電量計算 RE；年度目標可自行輸入（%）作為對照。
+          </p>
+          <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white/90 p-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-600">起日</label>
+              <input
+                type="date"
+                value={reCumStart || reDataDateSpan.start}
+                min={reDataDateSpan.start || undefined}
+                max={reDataDateSpan.end || undefined}
+                onChange={(e) => setReCumStart(e.target.value)}
+                className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-600">迄日</label>
+              <input
+                type="date"
+                value={reCumEnd || reDataDateSpan.end}
+                min={reDataDateSpan.start || undefined}
+                max={reDataDateSpan.end || undefined}
+                onChange={(e) => setReCumEnd(e.target.value)}
+                className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
+              />
+            </div>
+            <div className="min-w-[7rem]">
+              <label className="mb-1 block text-[10px] font-bold text-slate-600">RE 年度目標（%）</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={reAnnualTargetPct}
+                onChange={(e) => setReAnnualTargetPct(Number(e.target.value))}
+                className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setReCumStart(reDataDateSpan.start);
+                setReCumEnd(reDataDateSpan.end);
+              }}
+              className="h-9 rounded-md border border-slate-300 bg-slate-50 px-3 text-xs font-bold text-slate-700"
+            >
+              帶入資料全日區間
+            </button>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+              <p className="text-[11px] font-bold text-slate-500">RE 年度目標</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-indigo-800">{reAnnualTargetPct.toFixed(1)}%</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+              <p className="text-[11px] font-bold text-slate-500">累計成功匹配量（kWh）</p>
+              <p className="mt-1 text-xl font-black tabular-nums text-slate-900">{cumulativeReForRange.sumMatched.toFixed(1)}</p>
+              <p className="mt-0.5 text-[10px] font-semibold text-slate-500">區間內 {cumulativeReForRange.dayCount} 日加總</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+              <p className="text-[11px] font-bold text-slate-500">累計用電量（kWh）</p>
+              <p className="mt-1 text-xl font-black tabular-nums text-slate-900">{cumulativeReForRange.sumLoad.toFixed(1)}</p>
+              <p className="mt-0.5 text-[10px] font-semibold text-slate-500">區間內 {cumulativeReForRange.dayCount} 日加總</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-3 shadow-sm">
+              <p className="text-[11px] font-bold text-emerald-900">
+                <span
+                  className="cursor-help border-b border-dotted border-emerald-700"
+                  title={reAchievementTooltip}
+                >
+                  RE 累計達成率
+                </span>
+              </p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-emerald-800">{cumulativeReForRange.rePct.toFixed(2)}%</p>
+              <p className={`mt-1 text-xs font-bold ${reVsTargetDiff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                與年度目標差 {reVsTargetDiff >= 0 ? '+' : ''}
+                {reVsTargetDiff.toFixed(2)}%
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">資料來源：AMI(量測)</span>
