@@ -37,9 +37,13 @@ export default function SettlementMonthlyPage() {
   const [openContractRightDetail, setOpenContractRightDetail] = useState(true);
   const [openStorageLeftDetail, setOpenStorageLeftDetail] = useState(true);
   const [openStorageRightDetail, setOpenStorageRightDetail] = useState(true);
+  const [openLoadLeftDetail, setOpenLoadLeftDetail] = useState(true);
+  const [openLoadRightDetail, setOpenLoadRightDetail] = useState(true);
+  const [openSuccessLeftDetail, setOpenSuccessLeftDetail] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState('00:00');
   const [selectedContractSlot, setSelectedContractSlot] = useState('00:00');
   const [selectedStorageSlot, setSelectedStorageSlot] = useState('00:00');
+  const [selectedSuccessSlot, setSelectedSuccessSlot] = useState('00:00');
   const flowToContractBySlot: Record<string, number> = {
     '00:00': 110,
     '04:00': 120,
@@ -51,7 +55,15 @@ export default function SettlementMonthlyPage() {
   const flowToStorageBySlot: Record<string, number> = {
     '12:00': 230,
   };
+  /** 發電端直接流向餘電（未進合約），與合約出口拆開以免重複計入 */
   const flowToSurplus = 120;
+
+  /** 桑基圖：合約數量總流出＝流入（650）＝640 至用電端 +10 至餘電 */
+  const SANKEY_CONTRACT_TO_LOAD = 640;
+  const SANKEY_CONTRACT_TO_SURPLUS = 10;
+  /** 用電端總流出＝流入（640）＝620 匹配成功 +20 餘電 */
+  const SANKEY_LOAD_TO_SUCCESS = 620;
+  const SANKEY_LOAD_TO_SURPLUS = 20;
 
   const palette =
     paletteMode === 'A'
@@ -106,13 +118,14 @@ export default function SettlementMonthlyPage() {
     },
     { g1: 0, g2: 0, g3: 0, g4: 0, toContract: 0, toStorage: 0, total: 0 },
   );
+  /** 各時段「合約數量→用電端」分配（加總＝640）；餘電列加總＝10，與桑基合約出口一致 */
   const contractMatchRows = [
-    { slot: '00:00', totalMatchedGeneration: 110, l1: 38, l2: 36, l3: 36, unmatched: 18 },
-    { slot: '04:00', totalMatchedGeneration: 120, l1: 40, l2: 40, l3: 40, unmatched: 22 },
-    { slot: '08:00', totalMatchedGeneration: 110, l1: 36, l2: 37, l3: 37, unmatched: 20 },
-    { slot: '12:00', totalMatchedGeneration: 90, l1: 30, l2: 30, l3: 30, unmatched: 16 },
-    { slot: '16:00', totalMatchedGeneration: 120, l1: 41, l2: 39, l3: 40, unmatched: 22 },
-    { slot: '20:00', totalMatchedGeneration: 100, l1: 34, l2: 33, l3: 33, unmatched: 22 },
+    { slot: '00:00', totalMatchedGeneration: 108, l1: 37, l2: 35, l3: 36, unmatched: 2 },
+    { slot: '04:00', totalMatchedGeneration: 118, l1: 39, l2: 39, l3: 40, unmatched: 2 },
+    { slot: '08:00', totalMatchedGeneration: 108, l1: 35, l2: 36, l3: 37, unmatched: 2 },
+    { slot: '12:00', totalMatchedGeneration: 89, l1: 30, l2: 30, l3: 29, unmatched: 1 },
+    { slot: '16:00', totalMatchedGeneration: 118, l1: 39, l2: 39, l3: 40, unmatched: 2 },
+    { slot: '20:00', totalMatchedGeneration: 99, l1: 34, l2: 33, l3: 32, unmatched: 1 },
   ];
   const contractMatchTotals = contractMatchRows.reduce(
     (acc, row) => {
@@ -125,6 +138,30 @@ export default function SettlementMonthlyPage() {
     },
     { totalMatchedGeneration: 0, l1: 0, l2: 0, l3: 0, unmatched: 0 },
   );
+
+  /** 用電端節點：依各時段合約流入比例拆分「→成功匹配」620、「→餘電」20 */
+  const loadOutboundRows = useMemo(() => {
+    const totalIn = SANKEY_CONTRACT_TO_LOAD;
+    let accSuccess = 0;
+    let accSurplus = 0;
+    return contractMatchRows.map((row, i) => {
+      const last = i === contractMatchRows.length - 1;
+      if (last) {
+        return {
+          slot: row.slot,
+          fromContract: row.totalMatchedGeneration,
+          toSuccessMatch: SANKEY_LOAD_TO_SUCCESS - accSuccess,
+          toSurplus: SANKEY_LOAD_TO_SURPLUS - accSurplus,
+        };
+      }
+      const toSuccessMatch = Math.round((SANKEY_LOAD_TO_SUCCESS * row.totalMatchedGeneration) / totalIn);
+      const toSurplus = Math.round((SANKEY_LOAD_TO_SURPLUS * row.totalMatchedGeneration) / totalIn);
+      accSuccess += toSuccessMatch;
+      accSurplus += toSurplus;
+      return { slot: row.slot, fromContract: row.totalMatchedGeneration, toSuccessMatch, toSurplus };
+    });
+  }, [contractMatchRows]);
+
   const storageTransferRows = [
     { slot: '00:00', totalToLoadTransfer: 40, l1: 14, l2: 13, l3: 13, toStorageDeposit: 20 },
     { slot: '04:00', totalToLoadTransfer: 40, l1: 13, l2: 13, l3: 14, toStorageDeposit: 20 },
@@ -144,6 +181,57 @@ export default function SettlementMonthlyPage() {
     },
     { totalToLoadTransfer: 0, l1: 0, l2: 0, l3: 0, toStorageDeposit: 0 },
   );
+
+  /** 桑基：儲能→用電端轉移→成功匹配 總量（與 links 一致） */
+  const SANKEY_TRANSFER_TO_SUCCESS = 235;
+
+  /** 成功匹配量左側：契約路徑與儲能轉移路徑各自依該時段發電結構攤至 G1–G4 電號 */
+  const successMatchGenRows = useMemo(() => {
+    const tt = storageTransferTotals.totalToLoadTransfer || 1;
+    let accTransfer = 0;
+    const transferPathBySlot = storageTransferRows.map((st, i) => {
+      const last = i === storageTransferRows.length - 1;
+      if (last) return SANKEY_TRANSFER_TO_SUCCESS - accTransfer;
+      const v = Math.round((SANKEY_TRANSFER_TO_SUCCESS * st.totalToLoadTransfer) / tt);
+      accTransfer += v;
+      return v;
+    });
+    return contractMatchRows.map((cm, idx) => {
+      const gen = generationRows[idx];
+      const lo = loadOutboundRows[idx];
+      const contractPathKwh = lo.toSuccessMatch;
+      const transferPathKwh = transferPathBySlot[idx] ?? 0;
+      const splitByGen = (amount: number) => {
+        const t = gen.total || 1;
+        const g1 = Math.round((amount * gen.g1) / t);
+        const g2 = Math.round((amount * gen.g2) / t);
+        const g3 = Math.round((amount * gen.g3) / t);
+        const g4 = amount - g1 - g2 - g3;
+        return { g1, g2, g3, g4 };
+      };
+      const c = splitByGen(contractPathKwh);
+      const tr = splitByGen(transferPathKwh);
+      return {
+        slot: cm.slot,
+        contractPathKwh,
+        transferPathKwh,
+        totalSlotSuccess: contractPathKwh + transferPathKwh,
+        cg1: c.g1,
+        cg2: c.g2,
+        cg3: c.g3,
+        cg4: c.g4,
+        tg1: tr.g1,
+        tg2: tr.g2,
+        tg3: tr.g3,
+        tg4: tr.g4,
+        g1Name: gen.g1Name,
+        g2Name: gen.g2Name,
+        g3Name: gen.g3Name,
+        g4Name: gen.g4Name,
+      };
+    });
+  }, [loadOutboundRows, storageTransferTotals.totalToLoadTransfer, storageTransferRows]);
+
   const storageChargeQuarterRatios = [0.06, 0.06, 0.06, 0.06, 0.07, 0.07, 0.07, 0.07, 0.06, 0.06, 0.06, 0.06, 0.07, 0.07, 0.08, 0.09];
   const buildStorageQuarterSeries = (base: number) => {
     const values = storageChargeQuarterRatios.map((ratio) => Math.round(base * ratio));
@@ -226,6 +314,19 @@ export default function SettlementMonthlyPage() {
     return { time, totalToLoadTransfer: l1 + l2 + l3, l1, l2, l3, toStorageDeposit };
   });
 
+  const selectedSuccessGenRow = successMatchGenRows.find((r) => r.slot === selectedSuccessSlot) ?? successMatchGenRows[0];
+  const successGenSlotHour = Number.parseInt(selectedSuccessGenRow.slot.split(':')[0] ?? '0', 10);
+  const qSuccContract = buildQuarterSeries(selectedSuccessGenRow.contractPathKwh);
+  const qSuccTransfer = buildQuarterSeries(selectedSuccessGenRow.transferPathKwh);
+  const quarterSuccessRows = Array.from({ length: 16 }).map((_, idx) => {
+    const hour = successGenSlotHour + Math.floor(idx / 4);
+    const minute = (idx % 4) * 15;
+    const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const contractPath = qSuccContract[idx];
+    const transferPath = qSuccTransfer[idx];
+    return { time, contractPath, transferPath, total: contractPath + transferPath };
+  });
+
   const storageLedgerRows: StorageLedgerRow[] = [
     { date: '04/24', openingMWh: 56, chargeMWh: 14, dischargeMWh: 10, closingMWh: 60, isValid: true },
     { date: '04/25', openingMWh: 60, chargeMWh: 16, dischargeMWh: 12, closingMWh: 64, isValid: true },
@@ -269,24 +370,20 @@ export default function SettlementMonthlyPage() {
       { name: '餘電', depth: 3, itemStyle: { color: palette.surplus }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
     ];
 
+    /** 不指定連線 color，改由 series.lineStyle.color: 'gradient' 依兩端節點 itemStyle 配色漸層 */
     const links = [
       { source: '發電端', target: '合約數量', value: generationTotals.toContract },
       { source: '發電端', target: '儲能', value: generationTotals.toStorage },
-      { source: '發電端', target: '餘電', value: flowToSurplus, lineStyle: { color: palette.flowFail } },
+      { source: '發電端', target: '餘電', value: flowToSurplus },
       { source: '儲能餘額', target: '儲能', value: 150 },
-      { source: '合約數量', target: '用電端', value: 650, lineStyle: { color: palette.flowContract } },
-      { source: '合約數量', target: '餘電', value: 120, lineStyle: { color: palette.flowFail } },
-      { source: '儲能', target: '用電端轉移量', value: 250, lineStyle: { color: palette.flowContract } },
-      { source: '儲能', target: '儲能存入量', value: 130, lineStyle: { color: palette.flowStorage } },
-      {
-        source: '用電端',
-        target: '成功匹配量',
-        value: 620,
-        lineStyle: { color: palette.flowSuccess },
-      },
-      { source: '用電端', target: '餘電', value: 30, lineStyle: { color: palette.flowFail } },
-      { source: '用電端轉移量', target: '成功匹配量', value: 235, lineStyle: { color: palette.flowSuccess } },
-      { source: '用電端轉移量', target: '餘電', value: 15, lineStyle: { color: palette.flowFail } },
+      { source: '合約數量', target: '用電端', value: SANKEY_CONTRACT_TO_LOAD },
+      { source: '合約數量', target: '餘電', value: SANKEY_CONTRACT_TO_SURPLUS },
+      { source: '儲能', target: '用電端轉移量', value: 250 },
+      { source: '儲能', target: '儲能存入量', value: 130 },
+      { source: '用電端', target: '成功匹配量', value: SANKEY_LOAD_TO_SUCCESS },
+      { source: '用電端', target: '餘電', value: SANKEY_LOAD_TO_SURPLUS },
+      { source: '用電端轉移量', target: '成功匹配量', value: 235 },
+      { source: '用電端轉移量', target: '餘電', value: 15 },
     ];
 
     return {
@@ -320,10 +417,17 @@ export default function SettlementMonthlyPage() {
           nodeGap: enlarge ? 42 : 36,
           nodeAlign: 'justify',
           layoutIterations: 64,
-          emphasis: { focus: 'adjacency' },
+          emphasis: {
+            focus: 'adjacency',
+            lineStyle: { color: 'gradient', opacity: 0.88 },
+          },
           draggable: true,
           roam: true,
-          lineStyle: { color: 'source', curveness: 0.32, opacity: 0.55 },
+          lineStyle: {
+            color: 'gradient',
+            curveness: 0.32,
+            opacity: 0.62,
+          },
           label: labelCommon,
           data: nodes,
           links,
@@ -346,7 +450,7 @@ export default function SettlementMonthlyPage() {
           <div>
             <h3 className="text-lg font-bold text-slate-900">4.2 月結算｜能源流動總覽（桑基）</h3>
             <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-600">
-              儲能餘額僅流入第二層「儲能」；「餘電」除發電端與合約未匹配外，也納入用電端/用電端轉移量的小比例失敗流向。數字為示範假資料，可改接月結算 API。圖表可左右捲動或拖曳縮放，避免標籤被裁切。
+              「合約數量」右側流出加總等於流入（650）＝640 至用電端＋10 至餘電；用電端總流出等於流入（640）＝620 成功匹配＋20 餘電。餘電亦含發電端直連與用電端轉移之失敗流向。數字為示範假資料。圖表可左右捲動或拖曳縮放。
             </p>
           </div>
           <button
@@ -392,7 +496,9 @@ export default function SettlementMonthlyPage() {
         </div>
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-bold text-slate-600">可點擊節點開啟明細（目前支援「發電端」、「合約數量」與「儲能餘額」）。</p>
+          <p className="text-xs font-bold text-slate-600">
+            可點擊節點開啟明細（發電端、合約數量、用電端、成功匹配量、儲能、儲能餘額）。
+          </p>
           {activeNode === '發電端' ? (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-slate-200 bg-white p-3">
@@ -565,11 +671,11 @@ export default function SettlementMonthlyPage() {
                   <div className="mt-2 space-y-3 text-xs font-semibold text-slate-700">
                     <div className="rounded border border-slate-200 bg-slate-50 p-2 text-slate-900">
                       <div className="flex items-center justify-between">
-                        <span>流入用電端</span>
+                        <span>流入用電端（與桑基 640 一致）</span>
                         <span>{contractMatchTotals.totalMatchedGeneration}</span>
                       </div>
                       <div className="mt-1 flex items-center justify-between text-red-600">
-                        <span>流入餘電</span>
+                        <span>流入餘電（與桑基 10 一致）</span>
                         <span>{contractMatchTotals.unmatched}</span>
                       </div>
                     </div>
@@ -579,11 +685,11 @@ export default function SettlementMonthlyPage() {
                         <thead className="bg-slate-100 text-slate-700">
                           <tr>
                             <th className="px-2 py-1 text-left">時段</th>
-                            <th className="px-2 py-1 text-right">總匹配發電量</th>
+                            <th className="px-2 py-1 text-right">分配至用電端</th>
                             <th className="px-2 py-1 text-right">L1</th>
                             <th className="px-2 py-1 text-right">L2</th>
                             <th className="px-2 py-1 text-right">L3</th>
-                            <th className="px-2 py-1 text-right">餘電（匹配失敗）量</th>
+                            <th className="px-2 py-1 text-right">合約出口·餘電</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -624,11 +730,11 @@ export default function SettlementMonthlyPage() {
                           <thead className="sticky top-0 bg-slate-100 text-slate-700">
                             <tr>
                               <th className="px-2 py-1 text-left">時間</th>
-                              <th className="px-2 py-1 text-right">總匹配發電量</th>
+                              <th className="px-2 py-1 text-right">分配至用電端</th>
                               <th className="px-2 py-1 text-right">L1</th>
                               <th className="px-2 py-1 text-right">L2</th>
                               <th className="px-2 py-1 text-right">L3</th>
-                              <th className="px-2 py-1 text-right">餘電（匹配失敗）量</th>
+                              <th className="px-2 py-1 text-right">合約出口·餘電</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -640,6 +746,218 @@ export default function SettlementMonthlyPage() {
                                 <td className="px-2 py-1 text-right">{row.l2}</td>
                                 <td className="px-2 py-1 text-right">{row.l3}</td>
                                 <td className="px-2 py-1 text-right text-red-600">{row.unmatched}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : activeNode === '用電端' ? (
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenLoadLeftDetail((v) => !v)}
+                  className="w-full rounded-md bg-amber-50 px-3 py-2 text-left text-sm font-bold text-amber-900"
+                >
+                  用電端左側明細（來自合約數量）{openLoadLeftDetail ? '▲' : '▼'}
+                </button>
+                {openLoadLeftDetail ? (
+                  <div className="mt-2 space-y-3 text-xs font-semibold text-slate-700">
+                    <div className="rounded border border-slate-200 bg-slate-50 p-2 text-slate-900">
+                      <div className="flex items-center justify-between">
+                        <span>合約數量 → 用電端（加總）</span>
+                        <span>{SANKEY_CONTRACT_TO_LOAD}</span>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto rounded border border-slate-200">
+                      <table className="min-w-[420px] text-xs">
+                        <thead className="bg-slate-100 text-slate-700">
+                          <tr>
+                            <th className="px-2 py-1 text-left">時段</th>
+                            <th className="px-2 py-1 text-right">來自合約數量(kWh)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {contractMatchRows.map((row) => (
+                            <tr key={`load-in-${row.slot}`} className="border-t border-slate-200 bg-white">
+                              <td className="px-2 py-1 font-bold">{row.slot}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">{row.totalMatchedGeneration}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-slate-300 bg-slate-100 font-black text-slate-900">
+                            <td className="px-2 py-1">合計</td>
+                            <td className="px-2 py-1 text-right">{contractMatchTotals.totalMatchedGeneration}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenLoadRightDetail((v) => !v)}
+                  className="w-full rounded-md bg-emerald-50 px-3 py-2 text-left text-sm font-bold text-emerald-900"
+                >
+                  用電端右側明細（成功匹配量／餘電）{openLoadRightDetail ? '▲' : '▼'}
+                </button>
+                {openLoadRightDetail ? (
+                  <div className="mt-2 space-y-3 text-xs font-semibold text-slate-700">
+                    <div className="rounded border border-slate-200 bg-slate-50 p-2 text-slate-900">
+                      <div className="flex items-center justify-between">
+                        <span>→ 成功匹配量（加總）</span>
+                        <span>{SANKEY_LOAD_TO_SUCCESS}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-red-600">
+                        <span>→ 餘電（加總）</span>
+                        <span>{SANKEY_LOAD_TO_SURPLUS}</span>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto rounded border border-slate-200">
+                      <table className="min-w-[520px] text-xs">
+                        <thead className="bg-slate-100 text-slate-700">
+                          <tr>
+                            <th className="px-2 py-1 text-left">時段</th>
+                            <th className="px-2 py-1 text-right">成功匹配量(kWh)</th>
+                            <th className="px-2 py-1 text-right">餘電(kWh)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {loadOutboundRows.map((row) => (
+                            <tr key={`load-out-${row.slot}`} className="border-t border-slate-200 bg-white">
+                              <td className="px-2 py-1 font-bold">{row.slot}</td>
+                              <td className="px-2 py-1 text-right tabular-nums text-emerald-700">{row.toSuccessMatch}</td>
+                              <td className="px-2 py-1 text-right tabular-nums text-red-600">{row.toSurplus}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-slate-300 bg-slate-100 font-black text-slate-900">
+                            <td className="px-2 py-1">合計</td>
+                            <td className="px-2 py-1 text-right text-emerald-700">{SANKEY_LOAD_TO_SUCCESS}</td>
+                            <td className="px-2 py-1 text-right text-red-600">{SANKEY_LOAD_TO_SURPLUS}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : activeNode === '成功匹配量' ? (
+            <div className="mt-3 space-y-4">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <button
+                  type="button"
+                  onClick={() => setOpenSuccessLeftDetail((v) => !v)}
+                  className="w-full rounded-md bg-amber-50 px-3 py-2 text-left text-sm font-bold text-amber-900"
+                >
+                  成功匹配量左側明細（用電端／轉移量 → 依發電電號攤提）{openSuccessLeftDetail ? '▲' : '▼'}
+                </button>
+                {openSuccessLeftDetail ? (
+                  <div className="mt-2 space-y-3 text-xs font-semibold text-slate-700">
+                    <p className="text-[11px] font-semibold text-slate-600">
+                      契約路徑對應「用電端→成功匹配」之總量（620）在各時段之分攤；儲能轉移路徑對應「用電端轉移量→成功匹配」（235）依各時段轉移比例拆分。下表將兩路徑電量依該時段發電結構比例攤至 G1–G4 發電電號。
+                    </p>
+                    <div className="overflow-x-auto rounded border border-slate-200">
+                      <table className="min-w-[920px] text-[11px]">
+                        <thead className="bg-slate-100 text-slate-700">
+                          <tr>
+                            <th className="px-2 py-1 text-left" rowSpan={2}>
+                              時段
+                            </th>
+                            <th className="px-2 py-1 text-center border-l border-slate-200" colSpan={5}>
+                              契約路徑（用電端）
+                            </th>
+                            <th className="px-2 py-1 text-center border-l border-slate-200" colSpan={5}>
+                              儲能轉移路徑
+                            </th>
+                            <th className="px-2 py-1 text-right border-l border-slate-200" rowSpan={2}>
+                              時段合計
+                            </th>
+                          </tr>
+                          <tr>
+                            <th className="px-2 py-1 text-right border-l border-slate-200">小計</th>
+                            <th className="px-2 py-1 text-right">G1</th>
+                            <th className="px-2 py-1 text-right">G2</th>
+                            <th className="px-2 py-1 text-right">G3</th>
+                            <th className="px-2 py-1 text-right">G4</th>
+                            <th className="px-2 py-1 text-right border-l border-slate-200">小計</th>
+                            <th className="px-2 py-1 text-right">G1</th>
+                            <th className="px-2 py-1 text-right">G2</th>
+                            <th className="px-2 py-1 text-right">G3</th>
+                            <th className="px-2 py-1 text-right">G4</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {successMatchGenRows.map((row) => (
+                            <tr
+                              key={`succ-gen-${row.slot}`}
+                              onClick={() => setSelectedSuccessSlot(row.slot)}
+                              className={`cursor-pointer border-t border-slate-200 ${
+                                selectedSuccessSlot === row.slot ? 'bg-emerald-50' : 'bg-white hover:bg-slate-50'
+                              }`}
+                            >
+                              <td className="px-2 py-1 font-bold">{row.slot}</td>
+                              <td className="px-2 py-1 text-right border-l border-slate-200 font-semibold text-emerald-800">{row.contractPathKwh}</td>
+                              <td className="px-2 py-1 text-right">{row.cg1}</td>
+                              <td className="px-2 py-1 text-right">{row.cg2}</td>
+                              <td className="px-2 py-1 text-right">{row.cg3}</td>
+                              <td className="px-2 py-1 text-right">{row.cg4}</td>
+                              <td className="px-2 py-1 text-right border-l border-slate-200 font-semibold text-indigo-800">{row.transferPathKwh}</td>
+                              <td className="px-2 py-1 text-right">{row.tg1}</td>
+                              <td className="px-2 py-1 text-right">{row.tg2}</td>
+                              <td className="px-2 py-1 text-right">{row.tg3}</td>
+                              <td className="px-2 py-1 text-right">{row.tg4}</td>
+                              <td className="px-2 py-1 text-right border-l border-slate-200 font-black">{row.totalSlotSuccess}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t border-slate-300 bg-slate-100 font-black text-slate-900">
+                            <td className="px-2 py-1">合計</td>
+                            <td className="px-2 py-1 text-right border-l border-slate-200 text-emerald-800">{SANKEY_LOAD_TO_SUCCESS}</td>
+                            <td className="px-2 py-1 text-right" colSpan={4}>
+                              —
+                            </td>
+                            <td className="px-2 py-1 text-right border-l border-slate-200 text-indigo-800">{SANKEY_TRANSFER_TO_SUCCESS}</td>
+                            <td className="px-2 py-1 text-right" colSpan={4}>
+                              —
+                            </td>
+                            <td className="px-2 py-1 text-right border-l border-slate-200">{SANKEY_LOAD_TO_SUCCESS + SANKEY_TRANSFER_TO_SUCCESS}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-[10px] font-semibold text-slate-500">
+                      G 欄位為示範電號對應：{successMatchGenRows[0]?.g1Name} / {successMatchGenRows[0]?.g2Name} / {successMatchGenRows[0]?.g3Name} /{' '}
+                      {successMatchGenRows[0]?.g4Name}
+                    </p>
+
+                    <div className="rounded border border-slate-200 bg-white p-2">
+                      <p className="pb-2 text-[11px] font-bold text-slate-600">
+                        點選時段「{selectedSuccessSlot}」：15 分鐘契約路徑／轉移路徑匹配電量（每 4 小時區間 16 筆）
+                      </p>
+                      <div className="max-h-52 overflow-y-auto rounded border border-slate-200">
+                        <table className="w-full text-[11px]">
+                          <thead className="sticky top-0 bg-slate-100 text-slate-700">
+                            <tr>
+                              <th className="px-2 py-1 text-left">時間</th>
+                              <th className="px-2 py-1 text-right">契約路徑(kWh)</th>
+                              <th className="px-2 py-1 text-right">轉移路徑(kWh)</th>
+                              <th className="px-2 py-1 text-right">合計</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {quarterSuccessRows.map((row) => (
+                              <tr key={`succ-q-${row.time}`} className="border-t border-slate-200">
+                                <td className="px-2 py-1 font-mono">{row.time}</td>
+                                <td className="px-2 py-1 text-right text-emerald-700">{row.contractPath}</td>
+                                <td className="px-2 py-1 text-right text-indigo-700">{row.transferPath}</td>
+                                <td className="px-2 py-1 text-right font-bold">{row.total}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -850,7 +1168,9 @@ export default function SettlementMonthlyPage() {
               </div>
             </div>
           ) : (
-            <p className="mt-3 text-sm font-semibold text-slate-600">目前可查看「發電端」、「合約數量」與「儲能餘額」互動明細，請點選對應節點。</p>
+            <p className="mt-3 text-sm font-semibold text-slate-600">
+              請點選圖上節點（發電端、合約數量、用電端、成功匹配量、儲能、儲能餘額）檢視對應明細。
+            </p>
           )}
         </div>
       </section>

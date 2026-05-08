@@ -39,6 +39,62 @@ function buildHourlyRowsByDate(dateLabel: string): HourRow[] {
   });
 }
 
+type QuarterRow = {
+  slotIndex: number;
+  timeLabel: string;
+  generationPlan: number;
+  generationActual: number;
+  loadPlan: number;
+  loadActual: number;
+  storagePlan: number;
+  storageActual: number;
+};
+
+/** 將單日小時列展開為 96 筆 15 分鐘列（每小時四等分加權，加總與小時值一致） */
+function expandHourlyToQuarterRows(rows: HourRow[], dateLabel: string): QuarterRow[] {
+  const dateSeed = dateLabel.split('-').reduce((acc, part) => acc + Number(part || 0), 0);
+  const out: QuarterRow[] = [];
+
+  for (const row of rows) {
+    const h = row.hour;
+    const w0 = 0.23 + ((dateSeed + h * 7) % 8) * 0.01;
+    const w1 = 0.27 - ((dateSeed + h * 3) % 5) * 0.008;
+    const w2 = 0.26 + ((dateSeed + h) % 4) * 0.01;
+    const w3 = Math.max(0.05, 1 - w0 - w1 - w2);
+    const sumW = w0 + w1 + w2 + w3;
+    const weights = [w0 / sumW, w1 / sumW, w2 / sumW, w3 / sumW];
+
+    const splitHourTotal = (total: number): number[] => {
+      const raw = weights.map((w) => Number((total * w).toFixed(3)));
+      const drift = Number((total - raw.reduce((a, b) => a + b, 0)).toFixed(3));
+      raw[3] = Number((raw[3] + drift).toFixed(3));
+      return raw;
+    };
+
+    const genP = splitHourTotal(row.generationPlan);
+    const genA = splitHourTotal(row.generationActual);
+    const loadP = splitHourTotal(row.loadPlan);
+    const loadA = splitHourTotal(row.loadActual);
+    const stoP = splitHourTotal(row.storagePlan);
+    const stoA = splitHourTotal(row.storageActual);
+
+    for (let q = 0; q < 4; q++) {
+      const mins = q * 15;
+      out.push({
+        slotIndex: h * 4 + q,
+        timeLabel: `${String(h).padStart(2, '0')}:${String(mins).padStart(2, '0')}`,
+        generationPlan: genP[q],
+        generationActual: genA[q],
+        loadPlan: loadP[q],
+        loadActual: loadA[q],
+        storagePlan: stoP[q],
+        storageActual: stoA[q],
+      });
+    }
+  }
+  return out;
+}
+
 function buildSeriesChartOption(title: string, rows: HourRow[], planKey: keyof HourRow, actualKey: keyof HourRow, unit: string): EChartsOption {
   return {
     animation: false,
@@ -101,7 +157,8 @@ export default function SettlementPreSettlementPage({
   pageHeading = '4.1 預結算 - 桑基匹配圖',
   defaultStyleMode = 'ab',
 }: SettlementPreSettlementPageProps) {
-  const hourlyRows = useMemo(() => buildHourlyRowsByDate(new Date().toISOString().slice(0, 10)), []);
+  const chartDateLabel = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const hourlyRows = useMemo(() => buildHourlyRowsByDate(chartDateLabel), [chartDateLabel]);
   const now = useMemo(() => new Date(), []);
   const [sankeyDatePreset, setSankeyDatePreset] = useState<'7d' | '30d' | 'all'>('7d');
   const [sankeyDateStart, setSankeyDateStart] = useState(() => {
@@ -112,20 +169,59 @@ export default function SettlementPreSettlementPage({
   const [sankeyDateEnd, setSankeyDateEnd] = useState(() => new Date().toISOString().slice(0, 10));
   const [selectedSankeyDate, setSelectedSankeyDate] = useState(() => new Date().toISOString().slice(0, 10));
 
-  const allocationRows = useMemo(
+  const quarterRows = useMemo(() => expandHourlyToQuarterRows(hourlyRows, chartDateLabel), [hourlyRows, chartDateLabel]);
+
+  const allocationQuarterRows = useMemo(
     () =>
-      hourlyRows.map((row) => {
+      quarterRows.map((row) => {
         const allocated = Math.min(row.generationActual + Math.max(row.storageActual, 0), row.loadPlan);
         const transferred = Math.max(0, Math.min(allocated, row.loadActual));
         return {
-          hour: row.hour,
-          allocated: Number(allocated.toFixed(1)),
-          transferred: Number(transferred.toFixed(1)),
-          diff: Number((transferred - row.loadActual).toFixed(1)),
+          timeLabel: row.timeLabel,
+          allocated: Number(allocated.toFixed(3)),
+          transferred: Number(transferred.toFixed(3)),
+          diff: Number((transferred - row.loadActual).toFixed(3)),
         };
       }),
-    [hourlyRows]
+    [quarterRows]
   );
+
+  const preSettlementReMetrics = useMemo(() => {
+    let totalLoadPlan = 0;
+    let totalLoadActual = 0;
+    let sumTransferredPlan = 0;
+    let sumTransferredActual = 0;
+    let surplusGenVsLoad = 0;
+    let shortfallGenVsLoad = 0;
+
+    for (const row of quarterRows) {
+      totalLoadPlan += row.loadPlan;
+      totalLoadActual += row.loadActual;
+      const allocatedPlan = Math.min(row.generationPlan + Math.max(row.storagePlan, 0), row.loadPlan);
+      const transferredPlan = Math.max(0, Math.min(allocatedPlan, row.loadPlan));
+      const allocated = Math.min(row.generationActual + Math.max(row.storageActual, 0), row.loadPlan);
+      const transferred = Math.max(0, Math.min(allocated, row.loadActual));
+      sumTransferredPlan += transferredPlan;
+      sumTransferredActual += transferred;
+      const bal = row.generationActual - row.loadActual;
+      if (bal > 0) surplusGenVsLoad += bal;
+      else shortfallGenVsLoad += -bal;
+    }
+
+    const rePlanPct = totalLoadPlan > 0 ? (sumTransferredPlan / totalLoadPlan) * 100 : 0;
+    const reActualPct = totalLoadActual > 0 ? (sumTransferredActual / totalLoadActual) * 100 : 0;
+
+    return {
+      rePlanPct: Number(rePlanPct.toFixed(2)),
+      reActualPct: Number(reActualPct.toFixed(2)),
+      surplusGenVsLoad: Number(surplusGenVsLoad.toFixed(1)),
+      shortfallGenVsLoad: Number(shortfallGenVsLoad.toFixed(1)),
+      totalLoadPlan: Number(totalLoadPlan.toFixed(1)),
+      totalLoadActual: Number(totalLoadActual.toFixed(1)),
+      sumTransferredPlan: Number(sumTransferredPlan.toFixed(1)),
+      sumTransferredActual: Number(sumTransferredActual.toFixed(1)),
+    };
+  }, [quarterRows]);
 
   const sankeyDetailRows = useMemo(() => {
     const totalDays = 25;
@@ -204,18 +300,18 @@ export default function SettlementPreSettlementPage({
     });
   }, [sankeyDateEnd, sankeyDatePreset, sankeyDateStart, sankeyDetailRows]);
 
-  const storageSettlementRows = useMemo(
+  const storageSettlementQuarterRows = useMemo(
     () =>
-      hourlyRows
+      quarterRows
         .filter((r) => r.storagePlan !== 0 || r.storageActual !== 0)
         .map((r) => ({
-          hour: r.hour,
+          timeLabel: r.timeLabel,
           plan: r.storagePlan,
           actual: r.storageActual,
-          delta: Number((r.storageActual - r.storagePlan).toFixed(1)),
-          consistent: Math.abs(r.storageActual - r.storagePlan) <= 3.5,
+          delta: Number((r.storageActual - r.storagePlan).toFixed(3)),
+          consistent: Math.abs(r.storageActual - r.storagePlan) <= 1,
         })),
-    [hourlyRows]
+    [quarterRows]
   );
 
   const [styleMode, setStyleMode] = useState<SankeyStyleMode>(defaultStyleMode);
@@ -830,6 +926,9 @@ export default function SettlementPreSettlementPage({
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-bold text-slate-900">預結算分配量 / 轉移成功量</h3>
+        <p className="mt-1 text-xs font-semibold text-slate-600">
+          下列明細以當日示範資料為準，時間粒度為每 15 分鐘一筆（00:00、00:15…共 96 筆）；與上方三圖同日、同套假資料邏輯。
+        </p>
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="h-[260px] rounded-xl border border-slate-200 bg-slate-50 p-2"><ReactECharts option={genChartOption} style={{ height: '100%' }} /></div>
           <div className="h-[260px] rounded-xl border border-slate-200 bg-slate-50 p-2"><ReactECharts option={loadChartOption} style={{ height: '100%' }} /></div>
@@ -842,33 +941,167 @@ export default function SettlementPreSettlementPage({
         >
           {showAllocationTable ? '收合詳細表格' : '展開詳細表格'}
         </button>
-        {showAllocationTable && <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-100 text-slate-900">
-              <tr>
-                <th className="px-3 py-2 text-left font-bold">時間</th>
-                <th className="px-3 py-2 text-right font-bold">預結算分配量(kWh)</th>
-                <th className="px-3 py-2 text-right font-bold">轉移成功量(kWh)</th>
-                <th className="px-3 py-2 text-right font-bold">與用電即時差異(kWh)</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-900">
-              {allocationRows.map((r) => (
-                <tr key={`alloc-${r.hour}`} className="border-t border-slate-200">
-                  <td className="px-3 py-2">{`${String(r.hour).padStart(2, '0')}:00`}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.allocated.toFixed(1)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.transferred.toFixed(1)}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${r.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{r.diff.toFixed(1)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>}
+        {showAllocationTable && (
+          <div className="mt-4 space-y-6">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <p className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-800">預結算分配／轉移（15 分鐘）</p>
+              <div className="max-h-[360px] overflow-y-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-bold">時間</th>
+                      <th className="px-3 py-2 text-right font-bold">預結算分配量(kWh)</th>
+                      <th className="px-3 py-2 text-right font-bold">轉移成功量(kWh)</th>
+                      <th className="px-3 py-2 text-right font-bold">與用電即時差異(kWh)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-slate-900">
+                    {allocationQuarterRows.map((r) => (
+                      <tr key={`alloc-q-${r.timeLabel}`} className="border-t border-slate-200">
+                        <td className="px-3 py-1.5 font-mono text-xs font-semibold">{r.timeLabel}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{r.allocated.toFixed(3)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{r.transferred.toFixed(3)}</td>
+                        <td className={`px-3 py-1.5 text-right tabular-nums ${r.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{r.diff.toFixed(3)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+              <div className="overflow-x-auto rounded-xl border border-amber-200 bg-amber-50/30">
+                <p className="border-b border-amber-200 bg-amber-100/60 px-3 py-2 text-xs font-black text-amber-950">發電量（15 分鐘）— 規劃／即時／誤差</p>
+                <div className="max-h-[280px] overflow-y-auto bg-white">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 z-[1] bg-amber-50 text-slate-900">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-bold">時間</th>
+                        <th className="px-2 py-1.5 text-right font-bold">規劃量</th>
+                        <th className="px-2 py-1.5 text-right font-bold">即時量測</th>
+                        <th className="px-2 py-1.5 text-right font-bold">誤差量</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quarterRows.map((r) => {
+                        const err = Number((r.generationActual - r.generationPlan).toFixed(3));
+                        return (
+                          <tr key={`g-q-${r.timeLabel}`} className="border-t border-slate-200">
+                            <td className="px-2 py-1 font-mono text-[11px]">{r.timeLabel}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{r.generationPlan.toFixed(3)}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{r.generationActual.toFixed(3)}</td>
+                            <td className={`px-2 py-1 text-right tabular-nums ${err === 0 ? 'text-slate-600' : err > 0 ? 'text-blue-700' : 'text-rose-700'}`}>{err.toFixed(3)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-blue-200 bg-blue-50/30">
+                <p className="border-b border-blue-200 bg-blue-100/60 px-3 py-2 text-xs font-black text-blue-950">用電量（15 分鐘）— 規劃／即時／誤差</p>
+                <div className="max-h-[280px] overflow-y-auto bg-white">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 z-[1] bg-blue-50 text-slate-900">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-bold">時間</th>
+                        <th className="px-2 py-1.5 text-right font-bold">規劃量</th>
+                        <th className="px-2 py-1.5 text-right font-bold">即時量測</th>
+                        <th className="px-2 py-1.5 text-right font-bold">誤差量</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quarterRows.map((r) => {
+                        const err = Number((r.loadActual - r.loadPlan).toFixed(3));
+                        return (
+                          <tr key={`l-q-${r.timeLabel}`} className="border-t border-slate-200">
+                            <td className="px-2 py-1 font-mono text-[11px]">{r.timeLabel}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{r.loadPlan.toFixed(3)}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{r.loadActual.toFixed(3)}</td>
+                            <td className={`px-2 py-1 text-right tabular-nums ${err === 0 ? 'text-slate-600' : err > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{err.toFixed(3)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-violet-200 bg-violet-50/30">
+                <p className="border-b border-violet-200 bg-violet-100/60 px-3 py-2 text-xs font-black text-violet-950">儲能量（15 分鐘）— 規劃／即時／誤差</p>
+                <div className="max-h-[280px] overflow-y-auto bg-white">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 z-[1] bg-violet-50 text-slate-900">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-bold">時間</th>
+                        <th className="px-2 py-1.5 text-right font-bold">規劃量</th>
+                        <th className="px-2 py-1.5 text-right font-bold">即時量測</th>
+                        <th className="px-2 py-1.5 text-right font-bold">誤差量</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quarterRows.map((r) => {
+                        const err = Number((r.storageActual - r.storagePlan).toFixed(3));
+                        return (
+                          <tr key={`s-q-${r.timeLabel}`} className="border-t border-slate-200">
+                            <td className="px-2 py-1 font-mono text-[11px]">{r.timeLabel}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{r.storagePlan.toFixed(3)}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{r.storageActual.toFixed(3)}</td>
+                            <td className={`px-2 py-1 text-right tabular-nums ${err === 0 ? 'text-slate-600' : err > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{err.toFixed(3)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs font-semibold text-slate-600">
+              誤差量定義為「即時量測 − 規劃量」（kWh）。儲能行含充／放電方向，與儲能圖同一欄位邏輯。
+            </p>
+          </div>
+        )}
+
+        <section className="mt-6 rounded-2xl border border-slate-300 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+          <h4 className="text-base font-bold text-slate-900">實際發電與實際用電｜失衡累積與匹配率 RE</h4>
+          <p className="mt-1 text-xs font-semibold text-slate-600">
+            「多估計／少估計」為以 15 分鐘加總之實際發電與實際用電比較：實發高於實載列為多估計（盈餘電量），實載高於實發列為少估計（缺口電量）。RE
+            ＝ 各時段轉移成功量加總 ÷ 用電量加總（預計 RE 僅用規劃量計算匹配、用電規劃加總為分母；實際 RE 用即時量測）。
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-amber-200 bg-white px-3 py-3">
+              <p className="text-[11px] font-bold text-amber-800">多估計（實發 &gt; 實載，累積 kWh）</p>
+              <p className="mt-1 text-xl font-black tabular-nums text-amber-900">{preSettlementReMetrics.surplusGenVsLoad.toFixed(1)}</p>
+            </div>
+            <div className="rounded-xl border border-rose-200 bg-white px-3 py-3">
+              <p className="text-[11px] font-bold text-rose-800">少估計（實載 &gt; 實發，累積 kWh）</p>
+              <p className="mt-1 text-xl font-black tabular-nums text-rose-900">{preSettlementReMetrics.shortfallGenVsLoad.toFixed(1)}</p>
+            </div>
+            <div className="rounded-xl border border-indigo-200 bg-white px-3 py-3">
+              <p className="text-[11px] font-bold text-indigo-800">預計 RE（僅規劃量）</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-indigo-900">{preSettlementReMetrics.rePlanPct.toFixed(2)}%</p>
+              <p className="mt-1 text-[10px] font-semibold text-slate-500">
+                分子 {preSettlementReMetrics.sumTransferredPlan.toFixed(1)} ÷ 分母 {preSettlementReMetrics.totalLoadPlan.toFixed(1)} kWh
+              </p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-white px-3 py-3">
+              <p className="text-[11px] font-bold text-emerald-800">實際 RE（即時量測）</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-emerald-900">{preSettlementReMetrics.reActualPct.toFixed(2)}%</p>
+              <p className="mt-1 text-[10px] font-semibold text-slate-500">
+                分子 {preSettlementReMetrics.sumTransferredActual.toFixed(1)} ÷ 分母 {preSettlementReMetrics.totalLoadActual.toFixed(1)} kWh
+              </p>
+            </div>
+          </div>
+        </section>
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-bold text-slate-900">儲能預結算一致性（計畫量 vs 實際運轉）</h3>
-        <p className="mt-1 text-xs font-semibold text-slate-800">計畫量對應申報計畫數值；比對實際運轉是否一致。</p>
+        <p className="mt-1 text-xs font-semibold text-slate-800">
+          計畫量對應申報計畫數值；比對實際運轉是否一致。展開後為 15 分鐘粒度（與預結算區塊同日資料）。
+        </p>
         <button
           type="button"
           onClick={() => setShowStorageTable((v) => !v)}
@@ -888,12 +1121,12 @@ export default function SettlementPreSettlementPage({
               </tr>
             </thead>
             <tbody className="text-slate-900">
-              {storageSettlementRows.map((r) => (
-                <tr key={`storage-settlement-${r.hour}`} className="border-t border-slate-200">
-                  <td className="px-3 py-2">{`${String(r.hour).padStart(2, '0')}:00`}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.plan.toFixed(1)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.actual.toFixed(1)}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${r.delta === 0 ? 'text-slate-700' : r.delta > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{r.delta.toFixed(1)}</td>
+              {storageSettlementQuarterRows.map((r) => (
+                <tr key={`storage-settlement-${r.timeLabel}`} className="border-t border-slate-200">
+                  <td className="px-3 py-2 font-mono text-xs">{r.timeLabel}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.plan.toFixed(3)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.actual.toFixed(3)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${r.delta === 0 ? 'text-slate-700' : r.delta > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{r.delta.toFixed(3)}</td>
                   <td className="px-3 py-2 text-center">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${r.consistent ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                       {r.consistent ? '一致' : '需調整'}
