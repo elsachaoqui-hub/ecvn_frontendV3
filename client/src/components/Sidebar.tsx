@@ -51,31 +51,40 @@ const navModules: ModuleItem[] = [
     ],
   },
   {
+    id: 'checking',
+    icon: 'fas fa-clipboard-check',
+    label: '4. 檢核作業',
+    subItems: [
+      { id: 'chk-4-1', label: '4.1 日檢核', view: 'checking-daily' },
+      { id: 'chk-4-2', label: '4.2 月檢核', view: 'checking-monthly' },
+    ],
+  },
+  {
     id: 'settlement',
     icon: 'fas fa-file-invoice-dollar',
-    label: '4. 結算作業',
+    label: '5. 結算作業',
     subItems: [
-      { id: 'set-4-1', label: '4.1 預結算', view: 'settlement-pre' },
-      { id: 'set-4-2', label: '4.2 月結算', view: 'settlement-monthly' },
+      { id: 'set-5-1', label: '5.1 預結算', view: 'settlement-pre' },
+      { id: 'set-5-2', label: '5.2 月結算', view: 'settlement-monthly' },
     ],
   },
   {
     id: 'monitoring',
     icon: 'fas fa-shield-alt',
-    label: '5. 監管作業',
+    label: '6. 監管作業',
     subItems: [
-      { id: 'mon-5-1', label: '5.1 市場流程監控' },
-      { id: 'mon-5-2', label: '5.2 市場監控儀表板' },
+      { id: 'mon-6-1', label: '6.1 市場流程監控' },
+      { id: 'mon-6-2', label: '6.2 市場監控儀表板' },
     ],
   },
   {
     id: 'others',
     icon: 'fas fa-cog',
-    label: '6. 其他作業',
+    label: '7. 其他作業',
     subItems: [
-      { id: 'oth-6-1', label: '6.1 通知' },
-      { id: 'oth-6-2', label: '6.2 系統管理' },
-      { id: 'oth-6-3', label: '6.3 網站管理' },
+      { id: 'oth-7-1', label: '7.1 通知' },
+      { id: 'oth-7-2', label: '7.2 系統管理' },
+      { id: 'oth-7-3', label: '7.3 網站管理' },
     ],
   },
 ];

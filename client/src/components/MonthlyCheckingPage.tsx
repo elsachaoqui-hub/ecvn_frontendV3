@@ -1,0 +1,579 @@
+import type { EChartsOption } from 'echarts';
+import ReactECharts from 'echarts-for-react';
+import { useMemo, useState } from 'react';
+
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { useRegistration } from '@/contexts/RegistrationContext';
+
+type QuarterRow = {
+  slot: string; // HH:MM (15-min)
+  settlementGenKwh: number; // 轉直供系統提供：結算用發電量
+  settlementLoadKwh: number; // 轉直供系統提供：結算用用電量
+  platformTransferToStorageKwh: number; // 本平台核算：移轉電能（存入儲能）
+  platformDischargeFromStorageKwh: number; // 本平台核算：儲能放電（供用電）
+  surplusKwh: number; // max(gen - load, 0)
+  residualLoadKwh: number; // max(load - gen, 0)
+  recognizedGreenChargeKwh: number; // 可認列（綠電）
+  invalidGreyChargeKwh: number; // 不可認列（灰電）→ 失效量
+  reasons: string[];
+  isInvalid: boolean;
+};
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function hashUnit(key: string) {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  return (h >>> 0) / 4294967295;
+}
+
+function fmtKwh(n: number) {
+  if (!Number.isFinite(n)) return '-';
+  return `${Math.round(n * 10) / 10}`;
+}
+
+function buildQuarterSlotsForMonth(anchor: string): string[] {
+  // Demo: 1 day (96 slots) to keep UI readable; later can expand to full month paging.
+  const day = anchor.slice(0, 10);
+  return Array.from({ length: 96 }, (_, i) => {
+    const h = Math.floor(i / 4);
+    const m = (i % 4) * 15;
+    return `${day} ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  });
+}
+
+function buildMonthlyQuarterRows(seedKey: string, greyRuleMode: 'strict' | 'tolerant', tolerancePct: number): QuarterRow[] {
+  const tol = clamp(tolerancePct, 0, 200) / 100;
+  const slots = buildQuarterSlotsForMonth(seedKey);
+
+  return slots.map((slot, idx) => {
+    const u = hashUnit(`${seedKey}:${slot}`);
+    const hour = Math.floor(idx / 4);
+
+    // Settlement generation/load are external truth from 轉直供系統 (demo numbers)
+    const sunShape = hour >= 6 && hour <= 17 ? Math.sin(((hour - 6) / 11) * Math.PI) : 0;
+    const settlementGenKwh = Math.max(0, (sunShape * (210 + u * 120) + (hour < 6 || hour > 17 ? 3 + u * 5 : 0)) * (0.86 + u * 0.22));
+    const settlementLoadKwh = Math.max(6, (55 + Math.cos(((hour - 13) / 11) * Math.PI) * 18) * (0.92 + hashUnit(`${seedKey}:${slot}:l`) * 0.16));
+
+    const surplusKwh = Math.max(0, settlementGenKwh - settlementLoadKwh);
+    const residualLoadKwh = Math.max(0, settlementLoadKwh - settlementGenKwh);
+
+    // Platform transfer-to-storage (charge) computed by this platform (demo)
+    const baseTransfer = Math.max(0, settlementGenKwh * (0.25 + hashUnit(`${seedKey}:${slot}:t`) * 0.42));
+
+    // Inject some invalid cases: transfer > settlementGen => grey portion exists (cannot be recognized)
+    const injectInvalid = hour >= 9 && hour <= 15 && hashUnit(`${seedKey}:${slot}:inv`) < 0.15;
+    const platformTransferToStorageKwh = injectInvalid
+      ? baseTransfer * (1.15 + hashUnit(`${seedKey}:${slot}:inv2`) * 0.75)
+      : baseTransfer * (0.92 + hashUnit(`${seedKey}:${slot}:ok`) * 0.18);
+
+    // Storage discharge (negative bar in chart). Demo: discharge from residual load with occasional "over-discharge".
+    const baseDischarge = residualLoadKwh * (0.28 + hashUnit(`${seedKey}:${slot}:d`) * 0.42);
+    const injectOverDischarge = hour >= 18 && hour <= 22 && hashUnit(`${seedKey}:${slot}:od`) < 0.09;
+    const platformDischargeFromStorageKwh = injectOverDischarge
+      ? baseDischarge * (1.25 + hashUnit(`${seedKey}:${slot}:od2`) * 0.55)
+      : baseDischarge * (0.9 + hashUnit(`${seedKey}:${slot}:dok`) * 0.18);
+
+    // Rule: recognized green charge cannot exceed settlement generation (physical constraint)
+    const rawGrey = Math.max(0, platformTransferToStorageKwh - settlementGenKwh);
+
+    // Optionally tolerate small exceed as rounding/clock drift
+    const allowedGrey = greyRuleMode === 'tolerant' ? settlementGenKwh * tol : 0;
+    const invalidGreyChargeKwh = Math.max(0, rawGrey - allowedGrey);
+    const recognizedGreenChargeKwh = Math.max(0, platformTransferToStorageKwh - invalidGreyChargeKwh);
+
+    const reasons: string[] = [];
+    let isInvalid = false;
+    if (invalidGreyChargeKwh > 0) {
+      isInvalid = true;
+      reasons.push('移轉存入儲能量 > 結算用發電量，灰電混入不可認列');
+      if (greyRuleMode === 'tolerant' && allowedGrey > 0) reasons.push(`已扣除容許值（${tolerancePct}%）後仍超量`);
+    }
+
+    // Additional compliance hint: if load is too low, transfer may be suspicious (demo placeholder)
+    if (platformTransferToStorageKwh > settlementLoadKwh * 2.2) {
+      reasons.push('移轉/用電關係異常（待補物理限制校核）');
+    }
+
+    return {
+      slot,
+      settlementGenKwh: Math.round(settlementGenKwh * 10) / 10,
+      settlementLoadKwh: Math.round(settlementLoadKwh * 10) / 10,
+      platformTransferToStorageKwh: Math.round(platformTransferToStorageKwh * 10) / 10,
+      platformDischargeFromStorageKwh: Math.round(platformDischargeFromStorageKwh * 10) / 10,
+      surplusKwh: Math.round(surplusKwh * 10) / 10,
+      residualLoadKwh: Math.round(residualLoadKwh * 10) / 10,
+      recognizedGreenChargeKwh: Math.round(recognizedGreenChargeKwh * 10) / 10,
+      invalidGreyChargeKwh: Math.round(invalidGreyChargeKwh * 10) / 10,
+      reasons,
+      isInvalid,
+    };
+  });
+}
+
+export default function MonthlyCheckingPage() {
+  const { agents } = useRegistration();
+
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [agentFilter, setAgentFilter] = useState<string>('all');
+
+  const [greyRuleMode, setGreyRuleMode] = useState<'strict' | 'tolerant'>('strict');
+  const [tolerancePct, setTolerancePct] = useState<number>(3);
+
+  const seedKey = useMemo(() => `${month}:${agentFilter === 'all' ? 'ALL' : agentFilter}`, [month, agentFilter]);
+  const rows = useMemo(
+    () => buildMonthlyQuarterRows(seedKey, greyRuleMode, tolerancePct),
+    [seedKey, greyRuleMode, tolerancePct]
+  );
+
+  const totals = useMemo(() => {
+    return rows.reduce(
+      (acc, r) => {
+        acc.gen += r.settlementGenKwh;
+        acc.load += r.settlementLoadKwh;
+        acc.transfer += r.platformTransferToStorageKwh;
+        acc.recognized += r.recognizedGreenChargeKwh;
+        acc.invalid += r.invalidGreyChargeKwh;
+        acc.invalidSlots += r.isInvalid ? 1 : 0;
+        return acc;
+      },
+      { gen: 0, load: 0, transfer: 0, recognized: 0, invalid: 0, invalidSlots: 0 }
+    );
+  }, [rows]);
+
+  const relationshipOption: EChartsOption = useMemo(() => {
+    const x = rows.map((r) => r.slot.slice(11)); // HH:MM
+    const gen = rows.map((r) => r.settlementGenKwh);
+    const load = rows.map((r) => r.settlementLoadKwh);
+
+    return {
+      animation: false,
+      grid: { top: 44, right: 18, bottom: 54, left: 56, containLabel: true },
+      tooltip: { trigger: 'axis' },
+      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: '#0f172a', fontWeight: 800 } },
+      xAxis: {
+        type: 'category',
+        data: x,
+        axisLabel: { fontSize: 10, interval: 7, color: '#0f172a', fontWeight: 700 },
+        axisLine: { lineStyle: { color: '#334155', width: 1.3 } },
+      },
+      yAxis: {
+        type: 'value',
+        name: 'kWh',
+        nameTextStyle: { color: '#0f172a', fontWeight: 800 },
+        axisLabel: { fontSize: 10, fontWeight: 700, color: '#0f172a' },
+        axisLine: { show: true, lineStyle: { color: '#334155', width: 1.3 } },
+        splitLine: { lineStyle: { color: '#94a3b8', width: 1, opacity: 0.65 } },
+      },
+      series: [
+        {
+          name: '結算用發電量',
+          type: 'line',
+          smooth: true,
+          symbol: 'none',
+          lineStyle: { width: 2.6, color: '#f59e0b' },
+          itemStyle: { color: '#f59e0b' },
+          data: gen,
+        },
+        {
+          name: '結算用用電量',
+          type: 'line',
+          smooth: true,
+          symbol: 'none',
+          lineStyle: { width: 2.2, color: '#0ea5e9' },
+          itemStyle: { color: '#0ea5e9' },
+          data: load,
+        },
+      ],
+    };
+  }, [rows]);
+
+  const surplusStorageOption: EChartsOption = useMemo(() => {
+    const x = rows.map((r) => r.slot.slice(11)); // HH:MM
+    const surplus = rows.map((r) => r.surplusKwh);
+    const residualNeg = rows.map((r) => (r.residualLoadKwh > 0 ? -r.residualLoadKwh : 0));
+    const storageNet = rows.map((r) => {
+      const charge = r.platformTransferToStorageKwh;
+      const discharge = r.platformDischargeFromStorageKwh;
+      // positive = charge, negative = discharge
+      return charge > 0 ? charge : discharge > 0 ? -discharge : 0;
+    });
+
+    // Mark potential over-charge/over-discharge on the storage series (demo)
+    const overMark = rows.map((r) => {
+      const charge = r.platformTransferToStorageKwh;
+      const discharge = r.platformDischargeFromStorageKwh;
+      const overCharge = r.surplusKwh > 0 ? charge - r.surplusKwh : charge;
+      const overDischarge = r.residualLoadKwh > 0 ? discharge - r.residualLoadKwh : discharge;
+      if (overCharge > 0.01) return { value: charge, itemStyle: { color: '#ef4444' } };
+      if (overDischarge > 0.01) return { value: -discharge, itemStyle: { color: '#ef4444' } };
+      return null;
+    });
+
+    return {
+      animation: false,
+      grid: { top: 44, right: 18, bottom: 54, left: 56, containLabel: true },
+      tooltip: { trigger: 'axis' },
+      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: '#0f172a', fontWeight: 800 } },
+      xAxis: {
+        type: 'category',
+        data: x,
+        axisLabel: { fontSize: 10, interval: 7, color: '#0f172a', fontWeight: 700 },
+        axisLine: { lineStyle: { color: '#334155', width: 1.3 } },
+      },
+      yAxis: {
+        type: 'value',
+        name: 'kWh',
+        nameTextStyle: { color: '#0f172a', fontWeight: 800 },
+        axisLabel: { fontSize: 10, fontWeight: 700, color: '#0f172a' },
+        axisLine: { show: true, lineStyle: { color: '#334155', width: 1.3 } },
+        splitLine: { lineStyle: { color: '#94a3b8', width: 1, opacity: 0.65 } },
+      },
+      series: [
+        {
+          name: '餘電（發電-用電）',
+          type: 'line',
+          smooth: true,
+          symbol: 'none',
+          lineStyle: { width: 2.2, color: '#16a34a' },
+          itemStyle: { color: '#16a34a' },
+          data: surplus,
+        },
+        {
+          name: '殘載（用電-發電）',
+          type: 'line',
+          smooth: true,
+          symbol: 'none',
+          lineStyle: { width: 2.2, color: '#f97316' },
+          itemStyle: { color: '#f97316' },
+          data: residualNeg,
+        },
+        {
+          name: '儲能充放電（+充 / -放）',
+          type: 'bar',
+          data: storageNet,
+          barMaxWidth: 14,
+          itemStyle: {
+            color: (p: { value: number }) => (p.value >= 0 ? '#7c3aed' : '#0f766e'),
+            opacity: 0.95,
+          },
+          markPoint: {
+            symbol: 'circle',
+            symbolSize: 10,
+            itemStyle: { color: '#ef4444' },
+            data: overMark.filter(Boolean) as any[],
+          },
+        },
+      ],
+    };
+  }, [rows]);
+
+  const invalidBarOption: EChartsOption = useMemo(() => {
+    const x = rows.map((r) => r.slot.slice(11)); // HH:MM
+    const y = rows.map((r) => r.invalidGreyChargeKwh);
+    return {
+      animation: false,
+      grid: { top: 18, right: 18, bottom: 54, left: 56, containLabel: true },
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: x, axisLabel: { fontSize: 10, interval: 7, color: '#0f172a', fontWeight: 700 }, axisLine: { lineStyle: { color: '#334155', width: 1.3 } } },
+      yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: '#0f172a', fontWeight: 800 }, axisLabel: { fontSize: 10, fontWeight: 700, color: '#0f172a' }, axisLine: { show: true, lineStyle: { color: '#334155', width: 1.3 } }, splitLine: { lineStyle: { color: '#94a3b8', width: 1, opacity: 0.65 } } },
+      series: [
+        {
+          type: 'bar',
+          name: '失效（灰電）',
+          data: y,
+          barMaxWidth: 14,
+          itemStyle: { color: (p: { value: number }) => (p.value > 0 ? '#ef4444' : '#94a3b8') },
+        },
+      ],
+    };
+  }, [rows]);
+
+  const invalidRows = useMemo(() => rows.filter((r) => r.invalidGreyChargeKwh > 0.0001), [rows]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight text-slate-900">4.2 月檢核（物理限制校核＋帳務沖銷）</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-600">
+            在代理人執行最終電量分配結算前，整合「轉直供系統」結算用實體電量與本平台核算移轉量，檢核合規性並標記失效電量（灰電不可認列）。
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="w-[170px]">
+            <div className="mb-1 text-xs font-black text-slate-700">月份</div>
+            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+          </div>
+
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <div className="text-xs font-black text-slate-700">代理人</div>
+            <select
+              className="bg-transparent text-sm font-bold text-slate-900 outline-none"
+              value={agentFilter}
+              onChange={(e) => setAgentFilter(e.target.value)}
+            >
+              <option value="all">全部代理人（彙總）</option>
+              {agents.map((a) => (
+                <option key={a.id} value={String(a.id)}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Button variant="secondary" onClick={() => setMonth(new Date().toISOString().slice(0, 7))}>
+            本月
+          </Button>
+        </div>
+      </div>
+
+      <Alert>
+        <AlertTitle>檢核主軸（你描述的灰電失效規則）</AlertTitle>
+        <AlertDescription>
+          以每 15 分鐘為單位：若「本平台核算的移轉存入儲能量」 &gt; 「轉直供系統的結算用發電量」，超出的部分視為灰電混入，
+          <span className="font-black text-slate-900">不可認列</span>，需標記為失效並於帳務沖銷/結算扣除。
+        </AlertDescription>
+      </Alert>
+
+      <Card className="border-slate-200">
+        <CardHeader className="border-b">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <CardTitle>① 實體電量 × 移轉量關係視覺化（可切頁籤看明細）</CardTitle>
+              <CardDescription>
+                電量來源：轉直供系統（結算用發電/用電）＋本平台核算（移轉存入儲能）。
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline">結算用發電 {fmtKwh(totals.gen)} kWh</Badge>
+              <Badge variant="outline">結算用用電 {fmtKwh(totals.load)} kWh</Badge>
+              <Badge variant="outline">移轉存入儲能 {fmtKwh(totals.transfer)} kWh</Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <ReactECharts option={relationshipOption} style={{ height: 260 }} />
+
+          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <div className="text-sm font-black text-slate-900">移轉存入儲能量（獨立趨勢圖）＋餘電/殘載對照</div>
+                <div className="mt-1 text-xs font-semibold text-slate-600">
+                  用結算用發電/用電計算餘電(正)與殘載(負)，並以長條呈現儲能充放電（充電為正值、放電為負值）。
+                  若出現超充/超放，會以紅點標示（示意）。
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">可認列綠電（充電）{fmtKwh(totals.recognized)} kWh</Badge>
+                <Badge variant={totals.invalid > 0 ? 'destructive' : 'secondary'}>失效灰電 {fmtKwh(totals.invalid)} kWh</Badge>
+              </div>
+            </div>
+            <div className="mt-3">
+              <ReactECharts option={surplusStorageOption} style={{ height: 280 }} />
+            </div>
+          </div>
+
+          <Separator className="my-6" />
+
+          <Tabs defaultValue="detail" className="w-full">
+            <TabsList className="w-full justify-start">
+              <TabsTrigger value="detail">明細表（15 分鐘）</TabsTrigger>
+              <TabsTrigger value="rule">檢核規則與狀態</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="detail" className="pt-4">
+              <div className="rounded-xl border border-slate-200">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>時段</TableHead>
+                      <TableHead>結算用發電（kWh）</TableHead>
+                      <TableHead>結算用用電（kWh）</TableHead>
+                      <TableHead>移轉存入儲能（kWh）</TableHead>
+                      <TableHead>可認列綠電（kWh）</TableHead>
+                      <TableHead>失效灰電（kWh）</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.slice(0, 48).map((r) => (
+                      <TableRow key={r.slot} className={r.isInvalid ? 'bg-red-50/60' : undefined}>
+                        <TableCell className="font-bold text-slate-900">{r.slot.slice(11)}</TableCell>
+                        <TableCell>{fmtKwh(r.settlementGenKwh)}</TableCell>
+                        <TableCell>{fmtKwh(r.settlementLoadKwh)}</TableCell>
+                        <TableCell className="font-bold">{fmtKwh(r.platformTransferToStorageKwh)}</TableCell>
+                        <TableCell className="text-emerald-700 font-black">{fmtKwh(r.recognizedGreenChargeKwh)}</TableCell>
+                        <TableCell className={r.invalidGreyChargeKwh > 0 ? 'text-red-700 font-black' : 'text-slate-700'}>
+                          {r.invalidGreyChargeKwh > 0 ? fmtKwh(r.invalidGreyChargeKwh) : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="mt-2 text-xs font-semibold text-slate-600">
+                註：此處為示範資料，先用「單日 96 筆」呈現 15 分鐘核算的 UX；後續可加上整月分頁/篩選與匯出。
+              </div>
+            </TabsContent>
+
+            <TabsContent value="rule" className="pt-4">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <Card className="border-slate-200">
+                  <CardHeader>
+                    <CardTitle className="text-base">灰電失效模式</CardTitle>
+                    <CardDescription>嚴格 or 容許（處理四捨五入/對時誤差）</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant={greyRuleMode === 'strict' ? 'default' : 'secondary'}
+                        onClick={() => setGreyRuleMode('strict')}
+                      >
+                        嚴格
+                      </Button>
+                      <Button
+                        variant={greyRuleMode === 'tolerant' ? 'default' : 'secondary'}
+                        onClick={() => setGreyRuleMode('tolerant')}
+                      >
+                        容許
+                      </Button>
+                    </div>
+                    <div className="mt-3 text-xs font-semibold text-slate-600">
+                      - **嚴格**：只要移轉存入 &gt; 結算用發電，超出即失效。<br />
+                      - **容許**：可設定容許比例，先扣除容許值後仍超出才失效。
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-slate-200">
+                  <CardHeader>
+                    <CardTitle className="text-base">容許比例（僅容許模式）</CardTitle>
+                    <CardDescription>預設 3%（可依規則調整）</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={200}
+                        value={tolerancePct}
+                        onChange={(e) => setTolerancePct(Number(e.target.value))}
+                      />
+                      <span className="text-sm font-bold text-slate-700">%</span>
+                    </div>
+                    <div className="mt-2 text-xs font-semibold text-slate-600">
+                      容許值會以「結算用發電量 × 比例」計算；仍超出的部分才列為失效灰電。
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-slate-200">
+                  <CardHeader>
+                    <CardTitle className="text-base">風險摘要</CardTitle>
+                    <CardDescription>失效時段與失效量</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={totals.invalid > 0 ? 'destructive' : 'secondary'}>
+                        失效時段 {totals.invalidSlots} / {rows.length}
+                      </Badge>
+                      <Badge variant={totals.invalid > 0 ? 'destructive' : 'secondary'}>
+                        失效灰電合計 {fmtKwh(totals.invalid)} kWh
+                      </Badge>
+                    </div>
+                    <div className="mt-2 text-xs font-semibold text-slate-600">
+                      若失效灰電 &gt; 0，則需執行：帳務沖銷（調節帳戶歸零不合規額度）＋結算扣除（不予計入）。
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-200">
+        <CardHeader className="border-b">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <CardTitle>② 移轉電能失效明細（灰電不可認列）</CardTitle>
+              <CardDescription>
+                逐 15 分鐘核實指出：**移轉存入儲能量大於結算用發電量** 的灰電部分，標記失效並列出原因。
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <Badge variant={totals.invalid > 0 ? 'destructive' : 'secondary'} className="cursor-default">
+                      失效灰電 {fmtKwh(totals.invalid)} kWh
+                    </Badge>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={6}>
+                  失效灰電 = max(0, 移轉存入儲能 - 結算用發電 - 容許值)
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <ReactECharts option={invalidBarOption} style={{ height: 240 }} />
+
+          <Separator className="my-6" />
+
+          <div className="rounded-xl border border-slate-200">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>時段</TableHead>
+                  <TableHead>移轉存入（kWh）</TableHead>
+                  <TableHead>結算用發電（kWh）</TableHead>
+                  <TableHead>可認列（kWh）</TableHead>
+                  <TableHead>失效灰電（kWh）</TableHead>
+                  <TableHead>原因</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(invalidRows.length > 0 ? invalidRows : rows.slice(0, 12)).map((r) => (
+                  <TableRow key={`inv-${r.slot}`} className={r.invalidGreyChargeKwh > 0 ? 'bg-red-50/60' : undefined}>
+                    <TableCell className="font-bold text-slate-900">{r.slot.slice(11)}</TableCell>
+                    <TableCell className="font-black text-slate-900">{fmtKwh(r.platformTransferToStorageKwh)}</TableCell>
+                    <TableCell>{fmtKwh(r.settlementGenKwh)}</TableCell>
+                    <TableCell className="font-black text-emerald-700">{fmtKwh(r.recognizedGreenChargeKwh)}</TableCell>
+                    <TableCell className={r.invalidGreyChargeKwh > 0 ? 'font-black text-red-700' : 'text-slate-700'}>
+                      {r.invalidGreyChargeKwh > 0 ? fmtKwh(r.invalidGreyChargeKwh) : '-'}
+                    </TableCell>
+                    <TableCell className="max-w-[520px] whitespace-normal text-xs font-semibold text-slate-700">
+                      {r.reasons.length > 0 ? r.reasons.join('；') : '—'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="mt-3 text-xs font-semibold text-slate-600">
+            註：此頁目前使用示範資料。後續串接真實資料時，表格可再加上：對應案場/表號、計畫群組、調節帳戶沖銷流水號、結算扣除註記等欄位。
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+

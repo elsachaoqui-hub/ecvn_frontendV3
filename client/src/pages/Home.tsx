@@ -12,6 +12,8 @@ import DeclarationPlanPage from '@/components/DeclarationPlanPage';
 import SettlementPreSettlementPage from '@/components/SettlementPreSettlementPage';
 import SettlementMonthlyPage from '@/components/SettlementMonthlyPage';
 import RegistrationOverview from '@/components/RegistrationOverview';
+import DailyCheckingPage from '@/components/DailyCheckingPage';
+import MonthlyCheckingPage from '@/components/MonthlyCheckingPage';
 
 function MainContent() {
   const { step, currentView, registrationScreen } = useRegistration();
@@ -37,6 +39,8 @@ function MainContent() {
           {currentView === 'dashboard-agent-aggregation' && <DashboardAgentAggregation />}
           {currentView === 'dashboard-realtime-generation' && <DashboardRealTimeGeneration />}
           {currentView === 'declaration-plan' && <DeclarationPlanPage />}
+          {currentView === 'checking-daily' && <DailyCheckingPage />}
+          {currentView === 'checking-monthly' && <MonthlyCheckingPage />}
           {currentView === 'settlement-pre' && <SettlementPreSettlementPage />}
           {currentView === 'settlement-monthly' && <SettlementMonthlyPage />}
         </main>
