@@ -176,9 +176,14 @@ export default function MonthlyCheckingPage() {
     const load = rows.map((r) => r.settlementLoadKwh);
 
     return {
+      backgroundColor: '#ffffff',
       animation: false,
       grid: { top: 44, right: 18, bottom: 54, left: 56, containLabel: true },
-      tooltip: { trigger: 'axis' },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        textStyle: { color: '#4A4A4A' },
+      },
       legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
       xAxis: {
         type: 'category',
@@ -260,9 +265,14 @@ export default function MonthlyCheckingPage() {
       .filter(Boolean);
 
     return {
+      backgroundColor: '#ffffff',
       animation: false,
       grid: { top: 44, right: 18, bottom: 54, left: 56, containLabel: true },
-      tooltip: { trigger: 'axis' },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        textStyle: { color: '#4A4A4A' },
+      },
       legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
       xAxis: {
         type: 'category',
@@ -326,9 +336,14 @@ export default function MonthlyCheckingPage() {
       },
     }));
     return {
+      backgroundColor: '#ffffff',
       animation: false,
       grid: { top: 18, right: 18, bottom: 54, left: 56, containLabel: true },
-      tooltip: { trigger: 'axis' },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        textStyle: { color: '#4A4A4A' },
+      },
       xAxis: { type: 'category', data: x, axisLabel: { fontSize: 10, interval: 7, color: LIGHT_CHART_TEXT, fontWeight: 500 }, axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } } },
       yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 }, axisLabel: { fontSize: 10, fontWeight: 500, color: LIGHT_CHART_TEXT }, axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } }, splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } } },
       series: [
@@ -407,7 +422,10 @@ export default function MonthlyCheckingPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-6">
-          <ReactECharts option={relationshipOption} style={{ height: 260 }} />
+          <ReactECharts
+            option={relationshipOption}
+            style={{ height: 260, backgroundColor: 'white', borderRadius: '8px' }}
+          />
 
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -424,7 +442,10 @@ export default function MonthlyCheckingPage() {
               </div>
             </div>
             <div className="mt-3">
-              <ReactECharts option={surplusStorageOption} style={{ height: 280 }} />
+              <ReactECharts
+                option={surplusStorageOption}
+                style={{ height: 280, backgroundColor: 'white', borderRadius: '8px' }}
+              />
             </div>
           </div>
 
@@ -572,7 +593,10 @@ export default function MonthlyCheckingPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-6">
-          <ReactECharts option={invalidBarOption} style={{ height: 240 }} />
+          <ReactECharts
+            option={invalidBarOption}
+            style={{ height: 240, backgroundColor: 'white', borderRadius: '8px' }}
+          />
 
           <Separator className="my-6" />
 
