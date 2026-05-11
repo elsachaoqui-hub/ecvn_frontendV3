@@ -26,6 +26,20 @@ const LIGHT_CHART_COLORS = {
   invalid: '#fca5a5',
   neutralBar: '#e2e8f0',
 } as const;
+const PANEL_CARD_CLASS = 'border border-black bg-white text-slate-800 shadow-none';
+const PANEL_BOX_CLASS = 'rounded-xl border border-black bg-white p-4 text-slate-800';
+const FIELD_CLASS = 'border-slate-300 bg-white text-slate-800';
+const CHART_TOOLTIP = {
+  trigger: 'axis' as const,
+  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  textStyle: { color: '#4A4A4A' },
+};
+const chartFrameStyle = (height: number) => ({
+  height,
+  backgroundColor: '#ffffff',
+  borderRadius: '8px',
+  border: '1px solid #000000',
+});
 
 type HourCheckRow = {
   hour: number;
@@ -147,10 +161,11 @@ export default function DailyCheckingPage() {
     const overScatter = rows.map((r) => (r.isOverstated ? r.predictedKwh : null));
 
     return {
+      backgroundColor: '#ffffff',
       animation: false,
       grid: { top: 44, right: 18, bottom: 54, left: 56, containLabel: true },
       tooltip: {
-        trigger: 'axis',
+        ...CHART_TOOLTIP,
         valueFormatter: (v: unknown) => (typeof v === 'number' ? `${v} kWh` : String(v)),
       },
       legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
@@ -208,9 +223,10 @@ export default function DailyCheckingPage() {
       },
     }));
     return {
+      backgroundColor: '#ffffff',
       animation: false,
       grid: { top: 18, right: 18, bottom: 54, left: 56, containLabel: true },
-      tooltip: { trigger: 'axis' },
+      tooltip: CHART_TOOLTIP,
       xAxis: {
         type: 'category',
         data: x,
@@ -248,12 +264,12 @@ export default function DailyCheckingPage() {
         <div className="flex flex-wrap items-end gap-2">
           <div className="w-[180px]">
             <div className="mb-1 text-xs font-bold text-slate-700">檢核日期（D）</div>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={FIELD_CLASS} />
           </div>
           <div className="w-[260px]">
             <div className="mb-1 text-xs font-bold text-slate-700">代理人</div>
             <Select value={agentFilter} onValueChange={(v) => setAgentFilter(v)}>
-              <SelectTrigger>
+              <SelectTrigger className={FIELD_CLASS}>
                 <SelectValue placeholder="選擇代理人" />
               </SelectTrigger>
               <SelectContent>
@@ -267,7 +283,8 @@ export default function DailyCheckingPage() {
             </Select>
           </div>
           <Button
-            variant="secondary"
+            variant="outline"
+            className="border-black bg-white text-slate-800 hover:bg-slate-50"
             onClick={() => {
               const d = new Date();
               d.setDate(d.getDate() - 1);
@@ -280,7 +297,7 @@ export default function DailyCheckingPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        <Card>
+        <Card className={PANEL_CARD_CLASS}>
           <CardHeader>
             <CardTitle className="text-base">正向偏差容許值</CardTitle>
             <CardDescription>可調整（例如 30% 或 50%）</CardDescription>
@@ -293,13 +310,14 @@ export default function DailyCheckingPage() {
                 max={200}
                 value={tolerancePct}
                 onChange={(e) => setTolerancePct(Number(e.target.value))}
+                className={FIELD_CLASS}
               />
               <span className="text-sm font-bold text-slate-700">%</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={PANEL_CARD_CLASS}>
           <CardHeader>
             <CardTitle className="text-base">異常時段數上限（N）</CardTitle>
             <CardDescription>超過即啟動失效/追回條件（試算）</CardDescription>
@@ -311,11 +329,12 @@ export default function DailyCheckingPage() {
               max={24}
               value={maxAnomalyHours}
               onChange={(e) => setMaxAnomalyHours(Number(e.target.value))}
+              className={FIELD_CLASS}
             />
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={PANEL_CARD_CLASS}>
           <CardHeader>
             <CardTitle className="text-base">全日平均正向偏差門檻</CardTitle>
             <CardDescription>超過即啟動失效/追回條件（試算）</CardDescription>
@@ -328,13 +347,14 @@ export default function DailyCheckingPage() {
                 max={200}
                 value={avgDeviationThresholdPct}
                 onChange={(e) => setAvgDeviationThresholdPct(Number(e.target.value))}
+                className={FIELD_CLASS}
               />
               <span className="text-sm font-bold text-slate-700">%</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={PANEL_CARD_CLASS}>
           <CardHeader>
             <CardTitle className="text-base">申復期</CardTitle>
             <CardDescription>例如 24 小時</CardDescription>
@@ -347,6 +367,7 @@ export default function DailyCheckingPage() {
                 max={168}
                 value={appealHours}
                 onChange={(e) => setAppealHours(Number(e.target.value))}
+                className={FIELD_CLASS}
               />
               <span className="text-sm font-bold text-slate-700">小時</span>
             </div>
@@ -354,8 +375,8 @@ export default function DailyCheckingPage() {
         </Card>
       </div>
 
-      <Card className="border-slate-200">
-        <CardHeader className="border-b">
+      <Card className={PANEL_CARD_CLASS}>
+        <CardHeader className="border-b border-black">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <CardTitle>① 預測 vs AMI 偏差圖（含異常標註）</CardTitle>
@@ -372,23 +393,23 @@ export default function DailyCheckingPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-6">
-          <ReactECharts option={deviationChartOption} style={{ height: 320 }} />
+          <ReactECharts option={deviationChartOption} style={chartFrameStyle(320)} />
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="rounded-xl border border-black bg-white p-4 text-slate-800">
               <div className="text-xs font-semibold text-slate-600">通知狀態（示意）</div>
               <div className="mt-1 text-sm font-semibold text-slate-800">前日預測表現報告</div>
               <div className="mt-2 text-xs font-semibold text-slate-600">
                 系統將依異常時段清單發送「預測偏離結算通知」，並提供 {appealHours} 小時申復期。
               </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="rounded-xl border border-black bg-white p-4 text-slate-800">
               <div className="text-xs font-semibold text-slate-600">虛報高估判定（示意）</div>
               <div className="mt-1 text-sm font-semibold text-slate-800">正向偏差容許值：{tolerancePct}%</div>
               <div className="mt-2 text-xs font-semibold text-slate-600">
                 若某時段偏差超過容許值，即標註為異常並納入失效條件試算。
               </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="rounded-xl border border-black bg-white p-4 text-slate-800">
               <div className="text-xs font-semibold text-slate-600">風險摘要</div>
               <div className="mt-1 flex items-center gap-2">
                 <Badge variant={shouldInvalidateDay ? 'destructive' : 'secondary'}>
@@ -403,8 +424,8 @@ export default function DailyCheckingPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-slate-200">
-        <CardHeader className="border-b">
+      <Card className={PANEL_CARD_CLASS}>
+        <CardHeader className="border-b border-black">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <CardTitle>② 移轉電能失效明細（試算）</CardTitle>
@@ -420,9 +441,9 @@ export default function DailyCheckingPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-6">
-          <ReactECharts option={invalidTransferOption} style={{ height: 240 }} />
+          <ReactECharts option={invalidTransferOption} style={chartFrameStyle(240)} />
 
-          <div className="mt-4 rounded-xl border border-slate-200">
+          <div className="mt-4 rounded-xl border border-black bg-white">
             <Table>
               <TableHeader>
                 <TableRow>

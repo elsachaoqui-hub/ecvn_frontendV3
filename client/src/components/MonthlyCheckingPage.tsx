@@ -31,6 +31,15 @@ const LIGHT_CHART_COLORS = {
   invalid: '#fca5a5',
   neutralBar: '#e2e8f0',
 } as const;
+const PANEL_CARD_CLASS = 'border border-black bg-white text-slate-800 shadow-none';
+const PANEL_BOX_CLASS = 'rounded-xl border border-black bg-white p-4 text-slate-800';
+const FIELD_CLASS = 'border-slate-300 bg-white text-slate-800';
+const chartFrameStyle = (height: number) => ({
+  height,
+  backgroundColor: '#ffffff',
+  borderRadius: '8px',
+  border: '1px solid #000000',
+});
 
 type QuarterRow = {
   slot: string; // HH:MM (15-min)
@@ -372,10 +381,10 @@ export default function MonthlyCheckingPage() {
         <div className="flex flex-wrap items-end gap-2">
           <div className="w-[170px]">
             <div className="mb-1 text-xs font-semibold text-slate-700">月份</div>
-            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className={FIELD_CLASS} />
           </div>
 
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+          <div className="flex items-center gap-2 rounded-lg border border-black bg-white px-3 py-2">
             <div className="text-xs font-semibold text-slate-700">代理人</div>
             <select
               className="bg-transparent text-sm font-bold text-slate-800 outline-none"
@@ -391,13 +400,17 @@ export default function MonthlyCheckingPage() {
             </select>
           </div>
 
-          <Button variant="secondary" onClick={() => setMonth(new Date().toISOString().slice(0, 7))}>
+          <Button
+            variant="outline"
+            className="border-black bg-white text-slate-800 hover:bg-slate-50"
+            onClick={() => setMonth(new Date().toISOString().slice(0, 7))}
+          >
             本月
           </Button>
         </div>
       </div>
 
-      <Alert>
+      <Alert className={`${PANEL_CARD_CLASS} py-4`}>
         <AlertTitle>檢核主軸（你描述的灰電失效規則）</AlertTitle>
         <AlertDescription>
           以每 15 分鐘為單位：若「本平台核算的移轉存入儲能量」 &gt; 「轉直供系統的結算用發電量」，超出的部分視為灰電混入，
@@ -405,8 +418,8 @@ export default function MonthlyCheckingPage() {
         </AlertDescription>
       </Alert>
 
-      <Card className="border-slate-200">
-        <CardHeader className="border-b">
+      <Card className={PANEL_CARD_CLASS}>
+        <CardHeader className="border-b border-black">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <CardTitle>① 實體電量 × 移轉量關係視覺化（可切頁籤看明細）</CardTitle>
@@ -424,10 +437,10 @@ export default function MonthlyCheckingPage() {
         <CardContent className="pt-6">
           <ReactECharts
             option={relationshipOption}
-            style={{ height: 260, backgroundColor: 'white', borderRadius: '8px' }}
+            style={chartFrameStyle(260)}
           />
 
-          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+          <div className={`mt-4 ${PANEL_BOX_CLASS}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <div className="text-sm font-semibold text-slate-800">移轉存入儲能量（獨立趨勢圖）＋餘電/殘載對照</div>
@@ -444,7 +457,7 @@ export default function MonthlyCheckingPage() {
             <div className="mt-3">
               <ReactECharts
                 option={surplusStorageOption}
-                style={{ height: 280, backgroundColor: 'white', borderRadius: '8px' }}
+                style={chartFrameStyle(280)}
               />
             </div>
           </div>
@@ -458,7 +471,7 @@ export default function MonthlyCheckingPage() {
             </TabsList>
 
             <TabsContent value="detail" className="pt-4">
-              <div className="rounded-xl border border-slate-200">
+              <div className="rounded-xl border border-black bg-white">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -493,7 +506,7 @@ export default function MonthlyCheckingPage() {
 
             <TabsContent value="rule" className="pt-4">
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <Card className="border-slate-200">
+                <Card className={PANEL_CARD_CLASS}>
                   <CardHeader>
                     <CardTitle className="text-base">灰電失效模式</CardTitle>
                     <CardDescription>嚴格 or 容許（處理四捨五入/對時誤差）</CardDescription>
@@ -520,7 +533,7 @@ export default function MonthlyCheckingPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-slate-200">
+                <Card className={PANEL_CARD_CLASS}>
                   <CardHeader>
                     <CardTitle className="text-base">容許比例（僅容許模式）</CardTitle>
                     <CardDescription>預設 3%（可依規則調整）</CardDescription>
@@ -533,6 +546,7 @@ export default function MonthlyCheckingPage() {
                         max={200}
                         value={tolerancePct}
                         onChange={(e) => setTolerancePct(Number(e.target.value))}
+                        className={FIELD_CLASS}
                       />
                       <span className="text-sm font-bold text-slate-700">%</span>
                     </div>
@@ -542,7 +556,7 @@ export default function MonthlyCheckingPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-slate-200">
+                <Card className={PANEL_CARD_CLASS}>
                   <CardHeader>
                     <CardTitle className="text-base">風險摘要</CardTitle>
                     <CardDescription>失效時段與失效量</CardDescription>
@@ -567,8 +581,8 @@ export default function MonthlyCheckingPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-slate-200">
-        <CardHeader className="border-b">
+      <Card className={PANEL_CARD_CLASS}>
+        <CardHeader className="border-b border-black">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <CardTitle>② 移轉電能失效明細（灰電不可認列）</CardTitle>
@@ -595,12 +609,12 @@ export default function MonthlyCheckingPage() {
         <CardContent className="pt-6">
           <ReactECharts
             option={invalidBarOption}
-            style={{ height: 240, backgroundColor: 'white', borderRadius: '8px' }}
+            style={chartFrameStyle(240)}
           />
 
           <Separator className="my-6" />
 
-          <div className="rounded-xl border border-slate-200">
+          <div className="rounded-xl border border-black bg-white">
             <Table>
               <TableHeader>
                 <TableRow>
