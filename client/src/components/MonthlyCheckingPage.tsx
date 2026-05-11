@@ -17,6 +17,21 @@ import {
 } from '@/components/ui/tooltip';
 import { useRegistration } from '@/contexts/RegistrationContext';
 
+const LIGHT_CHART_TEXT = '#64748b';
+const LIGHT_AXIS_LINE = '#cbd5e1';
+const LIGHT_GRID_LINE = '#e2e8f0';
+const LIGHT_CHART_COLORS = {
+  generation: '#fbbf24',
+  load: '#38bdf8',
+  surplus: '#4ade80',
+  residual: '#fdba74',
+  storageCharge: '#c4b5fd',
+  storageDischarge: '#99f6e4',
+  anomaly: '#f87171',
+  invalid: '#fca5a5',
+  neutralBar: '#e2e8f0',
+} as const;
+
 type QuarterRow = {
   slot: string; // HH:MM (15-min)
   settlementGenKwh: number; // 轉直供系統提供：結算用發電量
@@ -164,20 +179,20 @@ export default function MonthlyCheckingPage() {
       animation: false,
       grid: { top: 44, right: 18, bottom: 54, left: 56, containLabel: true },
       tooltip: { trigger: 'axis' },
-      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: '#0f172a', fontWeight: 800 } },
+      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
       xAxis: {
         type: 'category',
         data: x,
-        axisLabel: { fontSize: 10, interval: 7, color: '#0f172a', fontWeight: 700 },
-        axisLine: { lineStyle: { color: '#334155', width: 1.3 } },
+        axisLabel: { fontSize: 10, interval: 7, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
       },
       yAxis: {
         type: 'value',
         name: 'kWh',
-        nameTextStyle: { color: '#0f172a', fontWeight: 800 },
-        axisLabel: { fontSize: 10, fontWeight: 700, color: '#0f172a' },
-        axisLine: { show: true, lineStyle: { color: '#334155', width: 1.3 } },
-        splitLine: { lineStyle: { color: '#94a3b8', width: 1, opacity: 0.65 } },
+        nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 },
+        axisLabel: { fontSize: 10, fontWeight: 500, color: LIGHT_CHART_TEXT },
+        axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
+        splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } },
       },
       series: [
         {
@@ -185,8 +200,8 @@ export default function MonthlyCheckingPage() {
           type: 'line',
           smooth: true,
           symbol: 'none',
-          lineStyle: { width: 2.6, color: '#f59e0b' },
-          itemStyle: { color: '#f59e0b' },
+          lineStyle: { width: 2.6, color: LIGHT_CHART_COLORS.generation },
+          itemStyle: { color: LIGHT_CHART_COLORS.generation },
           data: gen,
         },
         {
@@ -194,8 +209,8 @@ export default function MonthlyCheckingPage() {
           type: 'line',
           smooth: true,
           symbol: 'none',
-          lineStyle: { width: 2.2, color: '#0ea5e9' },
-          itemStyle: { color: '#0ea5e9' },
+          lineStyle: { width: 2.2, color: LIGHT_CHART_COLORS.load },
+          itemStyle: { color: LIGHT_CHART_COLORS.load },
           data: load,
         },
       ],
@@ -209,39 +224,59 @@ export default function MonthlyCheckingPage() {
     const storageNet = rows.map((r) => {
       const charge = r.platformTransferToStorageKwh;
       const discharge = r.platformDischargeFromStorageKwh;
-      // positive = charge, negative = discharge
-      return charge > 0 ? charge : discharge > 0 ? -discharge : 0;
+      let value = 0;
+      if (typeof charge === 'number' && charge > 0) value = charge;
+      else if (typeof discharge === 'number' && discharge > 0) value = -discharge;
+      return {
+        value,
+        itemStyle: {
+          color: value >= 0 ? LIGHT_CHART_COLORS.storageCharge : LIGHT_CHART_COLORS.storageDischarge,
+          opacity: 0.95,
+        },
+      };
     });
 
     // Mark potential over-charge/over-discharge on the storage series (demo)
-    const overMark = rows.map((r) => {
-      const charge = r.platformTransferToStorageKwh;
-      const discharge = r.platformDischargeFromStorageKwh;
-      const overCharge = r.surplusKwh > 0 ? charge - r.surplusKwh : charge;
-      const overDischarge = r.residualLoadKwh > 0 ? discharge - r.residualLoadKwh : discharge;
-      if (overCharge > 0.01) return { value: charge, itemStyle: { color: '#ef4444' } };
-      if (overDischarge > 0.01) return { value: -discharge, itemStyle: { color: '#ef4444' } };
-      return null;
-    });
+    const overMark = rows
+      .map((r) => {
+        const charge = r.platformTransferToStorageKwh;
+        const discharge = r.platformDischargeFromStorageKwh;
+        const overCharge = r.surplusKwh > 0 ? charge - r.surplusKwh : charge;
+        const overDischarge = r.residualLoadKwh > 0 ? discharge - r.residualLoadKwh : discharge;
+        if (overCharge > 0.01)
+          return {
+            value: charge,
+            xAxis: r.slot.slice(11),
+            itemStyle: { color: LIGHT_CHART_COLORS.anomaly }
+          };
+        if (overDischarge > 0.01)
+          return {
+            value: -discharge,
+            xAxis: r.slot.slice(11),
+            itemStyle: { color: LIGHT_CHART_COLORS.anomaly }
+          };
+        return null;
+      })
+      .filter(Boolean);
 
     return {
       animation: false,
       grid: { top: 44, right: 18, bottom: 54, left: 56, containLabel: true },
       tooltip: { trigger: 'axis' },
-      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: '#0f172a', fontWeight: 800 } },
+      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
       xAxis: {
         type: 'category',
         data: x,
-        axisLabel: { fontSize: 10, interval: 7, color: '#0f172a', fontWeight: 700 },
-        axisLine: { lineStyle: { color: '#334155', width: 1.3 } },
+        axisLabel: { fontSize: 10, interval: 7, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
       },
       yAxis: {
         type: 'value',
         name: 'kWh',
-        nameTextStyle: { color: '#0f172a', fontWeight: 800 },
-        axisLabel: { fontSize: 10, fontWeight: 700, color: '#0f172a' },
-        axisLine: { show: true, lineStyle: { color: '#334155', width: 1.3 } },
-        splitLine: { lineStyle: { color: '#94a3b8', width: 1, opacity: 0.65 } },
+        nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 },
+        axisLabel: { fontSize: 10, fontWeight: 500, color: LIGHT_CHART_TEXT },
+        axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
+        splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } },
       },
       series: [
         {
@@ -249,8 +284,8 @@ export default function MonthlyCheckingPage() {
           type: 'line',
           smooth: true,
           symbol: 'none',
-          lineStyle: { width: 2.2, color: '#16a34a' },
-          itemStyle: { color: '#16a34a' },
+          lineStyle: { width: 2.2, color: LIGHT_CHART_COLORS.surplus },
+          itemStyle: { color: LIGHT_CHART_COLORS.surplus },
           data: surplus,
         },
         {
@@ -258,24 +293,24 @@ export default function MonthlyCheckingPage() {
           type: 'line',
           smooth: true,
           symbol: 'none',
-          lineStyle: { width: 2.2, color: '#f97316' },
-          itemStyle: { color: '#f97316' },
+          lineStyle: { width: 2.2, color: LIGHT_CHART_COLORS.residual },
+          itemStyle: { color: LIGHT_CHART_COLORS.residual },
           data: residualNeg,
         },
         {
-          name: '儲能充放電（+充 / -放）',
+          name: '儲能（平台核算）',
           type: 'bar',
           data: storageNet,
-          barMaxWidth: 14,
-          itemStyle: {
-            color: (p: { value: number }) => (p.value >= 0 ? '#7c3aed' : '#0f766e'),
-            opacity: 0.95,
-          },
+          barMaxWidth: 16,
           markPoint: {
             symbol: 'circle',
-            symbolSize: 10,
-            itemStyle: { color: '#ef4444' },
-            data: overMark.filter(Boolean) as any[],
+            symbolSize: 16,
+            itemStyle: {
+              color: LIGHT_CHART_COLORS.anomaly,
+              shadowColor: LIGHT_CHART_COLORS.anomaly,
+              shadowBlur: 10,
+            },
+            data: overMark as any[],
           },
         },
       ],
@@ -284,20 +319,24 @@ export default function MonthlyCheckingPage() {
 
   const invalidBarOption: EChartsOption = useMemo(() => {
     const x = rows.map((r) => r.slot.slice(11)); // HH:MM
-    const y = rows.map((r) => r.invalidGreyChargeKwh);
+    const barData = rows.map((r) => ({
+      value: r.invalidGreyChargeKwh,
+      itemStyle: {
+        color: r.invalidGreyChargeKwh > 0 ? LIGHT_CHART_COLORS.invalid : LIGHT_CHART_COLORS.neutralBar,
+      },
+    }));
     return {
       animation: false,
       grid: { top: 18, right: 18, bottom: 54, left: 56, containLabel: true },
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: x, axisLabel: { fontSize: 10, interval: 7, color: '#0f172a', fontWeight: 700 }, axisLine: { lineStyle: { color: '#334155', width: 1.3 } } },
-      yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: '#0f172a', fontWeight: 800 }, axisLabel: { fontSize: 10, fontWeight: 700, color: '#0f172a' }, axisLine: { show: true, lineStyle: { color: '#334155', width: 1.3 } }, splitLine: { lineStyle: { color: '#94a3b8', width: 1, opacity: 0.65 } } },
+      xAxis: { type: 'category', data: x, axisLabel: { fontSize: 10, interval: 7, color: LIGHT_CHART_TEXT, fontWeight: 500 }, axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } } },
+      yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 }, axisLabel: { fontSize: 10, fontWeight: 500, color: LIGHT_CHART_TEXT }, axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } }, splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } } },
       series: [
         {
           type: 'bar',
           name: '失效（灰電）',
-          data: y,
+          data: barData,
           barMaxWidth: 14,
-          itemStyle: { color: (p: { value: number }) => (p.value > 0 ? '#ef4444' : '#94a3b8') },
         },
       ],
     };
@@ -309,7 +348,7 @@ export default function MonthlyCheckingPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900">4.2 月檢核（物理限制校核＋帳務沖銷）</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-800">4.2 月檢核（物理限制校核＋帳務沖銷）</h2>
           <p className="mt-1 text-sm font-semibold text-slate-600">
             在代理人執行最終電量分配結算前，整合「轉直供系統」結算用實體電量與本平台核算移轉量，檢核合規性並標記失效電量（灰電不可認列）。
           </p>
@@ -317,14 +356,14 @@ export default function MonthlyCheckingPage() {
 
         <div className="flex flex-wrap items-end gap-2">
           <div className="w-[170px]">
-            <div className="mb-1 text-xs font-black text-slate-700">月份</div>
+            <div className="mb-1 text-xs font-semibold text-slate-700">月份</div>
             <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
           </div>
 
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
-            <div className="text-xs font-black text-slate-700">代理人</div>
+            <div className="text-xs font-semibold text-slate-700">代理人</div>
             <select
-              className="bg-transparent text-sm font-bold text-slate-900 outline-none"
+              className="bg-transparent text-sm font-bold text-slate-800 outline-none"
               value={agentFilter}
               onChange={(e) => setAgentFilter(e.target.value)}
             >
@@ -347,7 +386,7 @@ export default function MonthlyCheckingPage() {
         <AlertTitle>檢核主軸（你描述的灰電失效規則）</AlertTitle>
         <AlertDescription>
           以每 15 分鐘為單位：若「本平台核算的移轉存入儲能量」 &gt; 「轉直供系統的結算用發電量」，超出的部分視為灰電混入，
-          <span className="font-black text-slate-900">不可認列</span>，需標記為失效並於帳務沖銷/結算扣除。
+          <span className="font-semibold text-slate-800">不可認列</span>，需標記為失效並於帳務沖銷/結算扣除。
         </AlertDescription>
       </Alert>
 
@@ -373,7 +412,7 @@ export default function MonthlyCheckingPage() {
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <div className="text-sm font-black text-slate-900">移轉存入儲能量（獨立趨勢圖）＋餘電/殘載對照</div>
+                <div className="text-sm font-semibold text-slate-800">移轉存入儲能量（獨立趨勢圖）＋餘電/殘載對照</div>
                 <div className="mt-1 text-xs font-semibold text-slate-600">
                   用結算用發電/用電計算餘電(正)與殘載(負)，並以長條呈現儲能充放電（充電為正值、放電為負值）。
                   若出現超充/超放，會以紅點標示（示意）。
@@ -413,12 +452,12 @@ export default function MonthlyCheckingPage() {
                   <TableBody>
                     {rows.slice(0, 48).map((r) => (
                       <TableRow key={r.slot} className={r.isInvalid ? 'bg-red-50/60' : undefined}>
-                        <TableCell className="font-bold text-slate-900">{r.slot.slice(11)}</TableCell>
+                        <TableCell className="font-bold text-slate-800">{r.slot.slice(11)}</TableCell>
                         <TableCell>{fmtKwh(r.settlementGenKwh)}</TableCell>
                         <TableCell>{fmtKwh(r.settlementLoadKwh)}</TableCell>
                         <TableCell className="font-bold">{fmtKwh(r.platformTransferToStorageKwh)}</TableCell>
-                        <TableCell className="text-emerald-700 font-black">{fmtKwh(r.recognizedGreenChargeKwh)}</TableCell>
-                        <TableCell className={r.invalidGreyChargeKwh > 0 ? 'text-red-700 font-black' : 'text-slate-700'}>
+                        <TableCell className="text-emerald-600 font-semibold">{fmtKwh(r.recognizedGreenChargeKwh)}</TableCell>
+                        <TableCell className={r.invalidGreyChargeKwh > 0 ? 'text-rose-600 font-semibold' : 'text-slate-700'}>
                           {r.invalidGreyChargeKwh > 0 ? fmtKwh(r.invalidGreyChargeKwh) : '-'}
                         </TableCell>
                       </TableRow>
@@ -552,11 +591,11 @@ export default function MonthlyCheckingPage() {
               <TableBody>
                 {(invalidRows.length > 0 ? invalidRows : rows.slice(0, 12)).map((r) => (
                   <TableRow key={`inv-${r.slot}`} className={r.invalidGreyChargeKwh > 0 ? 'bg-red-50/60' : undefined}>
-                    <TableCell className="font-bold text-slate-900">{r.slot.slice(11)}</TableCell>
-                    <TableCell className="font-black text-slate-900">{fmtKwh(r.platformTransferToStorageKwh)}</TableCell>
+                    <TableCell className="font-bold text-slate-800">{r.slot.slice(11)}</TableCell>
+                    <TableCell className="font-semibold text-slate-800">{fmtKwh(r.platformTransferToStorageKwh)}</TableCell>
                     <TableCell>{fmtKwh(r.settlementGenKwh)}</TableCell>
-                    <TableCell className="font-black text-emerald-700">{fmtKwh(r.recognizedGreenChargeKwh)}</TableCell>
-                    <TableCell className={r.invalidGreyChargeKwh > 0 ? 'font-black text-red-700' : 'text-slate-700'}>
+                    <TableCell className="font-semibold text-emerald-600">{fmtKwh(r.recognizedGreenChargeKwh)}</TableCell>
+                    <TableCell className={r.invalidGreyChargeKwh > 0 ? 'font-semibold text-rose-600' : 'text-slate-700'}>
                       {r.invalidGreyChargeKwh > 0 ? fmtKwh(r.invalidGreyChargeKwh) : '-'}
                     </TableCell>
                     <TableCell className="max-w-[520px] whitespace-normal text-xs font-semibold text-slate-700">

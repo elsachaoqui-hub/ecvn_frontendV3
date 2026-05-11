@@ -16,6 +16,17 @@ import {
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
+const LIGHT_CHART_TEXT = '#64748b';
+const LIGHT_AXIS_LINE = '#cbd5e1';
+const LIGHT_GRID_LINE = '#e2e8f0';
+const LIGHT_CHART_COLORS = {
+  predicted: '#60a5fa',
+  ami: '#94a3b8',
+  anomaly: '#f87171',
+  invalid: '#fca5a5',
+  neutralBar: '#e2e8f0',
+} as const;
+
 type HourCheckRow = {
   hour: number;
   predictedKwh: number;
@@ -142,20 +153,20 @@ export default function DailyCheckingPage() {
         trigger: 'axis',
         valueFormatter: (v: unknown) => (typeof v === 'number' ? `${v} kWh` : String(v)),
       },
-      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: '#0f172a', fontWeight: 700 } },
+      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
       xAxis: {
         type: 'category',
         data: x,
-        axisLabel: { fontSize: 10, interval: 3, color: '#0f172a', fontWeight: 600 },
-        axisLine: { lineStyle: { color: '#334155', width: 1.3 } },
+        axisLabel: { fontSize: 10, interval: 3, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
       },
       yAxis: {
         type: 'value',
         name: 'kWh',
-        nameTextStyle: { color: '#0f172a', fontWeight: 700 },
-        axisLabel: { fontSize: 10, color: '#0f172a', fontWeight: 600 },
-        axisLine: { show: true, lineStyle: { color: '#334155', width: 1.3 } },
-        splitLine: { lineStyle: { color: '#94a3b8', width: 1, opacity: 0.65 } },
+        nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 },
+        axisLabel: { fontSize: 10, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
+        splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } },
       },
       series: [
         {
@@ -163,8 +174,8 @@ export default function DailyCheckingPage() {
           type: 'line',
           smooth: true,
           symbol: 'none',
-          lineStyle: { width: 2.6, color: '#2563eb' },
-          itemStyle: { color: '#2563eb' },
+          lineStyle: { width: 2.6, color: LIGHT_CHART_COLORS.predicted },
+          itemStyle: { color: LIGHT_CHART_COLORS.predicted },
           data: predicted,
         },
         {
@@ -172,15 +183,15 @@ export default function DailyCheckingPage() {
           type: 'line',
           smooth: true,
           symbol: 'none',
-          lineStyle: { width: 2, color: '#0f172a', type: 'dashed' },
-          itemStyle: { color: '#0f172a' },
+          lineStyle: { width: 2, color: LIGHT_CHART_COLORS.ami, type: 'dashed' },
+          itemStyle: { color: LIGHT_CHART_COLORS.ami },
           data: ami,
         },
         {
           name: '異常標註',
           type: 'scatter',
           symbolSize: 10,
-          itemStyle: { color: '#ef4444' },
+          itemStyle: { color: LIGHT_CHART_COLORS.anomaly },
           data: overScatter,
         },
       ],
@@ -189,7 +200,13 @@ export default function DailyCheckingPage() {
 
   const invalidTransferOption: EChartsOption = useMemo(() => {
     const x = rows.map((r) => `${String(r.hour).padStart(2, '0')}:00`);
-    const y = rows.map((r) => r.invalidTransferKwh);
+    const barData = rows.map((r) => ({
+      value: r.invalidTransferKwh,
+      itemStyle: {
+        color: r.invalidTransferKwh > 0 ? LIGHT_CHART_COLORS.invalid : LIGHT_CHART_COLORS.neutralBar,
+        opacity: 0.95,
+      },
+    }));
     return {
       animation: false,
       grid: { top: 18, right: 18, bottom: 54, left: 56, containLabel: true },
@@ -197,26 +214,22 @@ export default function DailyCheckingPage() {
       xAxis: {
         type: 'category',
         data: x,
-        axisLabel: { fontSize: 10, interval: 3, color: '#0f172a', fontWeight: 600 },
-        axisLine: { lineStyle: { color: '#334155', width: 1.3 } },
+        axisLabel: { fontSize: 10, interval: 3, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
       },
       yAxis: {
         type: 'value',
         name: 'kWh',
-        nameTextStyle: { color: '#0f172a', fontWeight: 700 },
-        axisLabel: { fontSize: 10, color: '#0f172a', fontWeight: 600 },
-        axisLine: { show: true, lineStyle: { color: '#334155', width: 1.3 } },
-        splitLine: { lineStyle: { color: '#94a3b8', width: 1, opacity: 0.65 } },
+        nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 },
+        axisLabel: { fontSize: 10, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
+        splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } },
       },
       series: [
         {
           type: 'bar',
           name: '失效移轉電量（試算）',
-          data: y,
-          itemStyle: {
-            color: (p: { value: number }) => (p.value > 0 ? '#ef4444' : '#94a3b8'),
-            opacity: 0.95,
-          },
+          data: barData,
           barMaxWidth: 18,
         },
       ],
@@ -227,7 +240,7 @@ export default function DailyCheckingPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900">4.1 日檢核（次日偏差結算檢核）</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-800">4.1 日檢核（次日偏差結算檢核）</h2>
           <p className="mt-1 text-sm font-semibold text-slate-600">
             D+1 自動比對「預測發電量」與「AMI 量測」，標註異常高估並試算移轉電能失效；提供申復期與原因追溯。
           </p>
@@ -362,21 +375,21 @@ export default function DailyCheckingPage() {
           <ReactECharts option={deviationChartOption} style={{ height: 320 }} />
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-xs font-black text-slate-700">通知狀態（示意）</div>
-              <div className="mt-1 text-sm font-bold text-slate-900">前日預測表現報告</div>
+              <div className="text-xs font-semibold text-slate-600">通知狀態（示意）</div>
+              <div className="mt-1 text-sm font-semibold text-slate-800">前日預測表現報告</div>
               <div className="mt-2 text-xs font-semibold text-slate-600">
                 系統將依異常時段清單發送「預測偏離結算通知」，並提供 {appealHours} 小時申復期。
               </div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-xs font-black text-slate-700">虛報高估判定（示意）</div>
-              <div className="mt-1 text-sm font-bold text-slate-900">正向偏差容許值：{tolerancePct}%</div>
+              <div className="text-xs font-semibold text-slate-600">虛報高估判定（示意）</div>
+              <div className="mt-1 text-sm font-semibold text-slate-800">正向偏差容許值：{tolerancePct}%</div>
               <div className="mt-2 text-xs font-semibold text-slate-600">
                 若某時段偏差超過容許值，即標註為異常並納入失效條件試算。
               </div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="text-xs font-black text-slate-700">風險摘要</div>
+              <div className="text-xs font-semibold text-slate-600">風險摘要</div>
               <div className="mt-1 flex items-center gap-2">
                 <Badge variant={shouldInvalidateDay ? 'destructive' : 'secondary'}>
                   {shouldInvalidateDay ? '疑似啟動移轉失效（試算）' : '未達失效條件（試算）'}
@@ -425,10 +438,10 @@ export default function DailyCheckingPage() {
               <TableBody>
                 {rows.map((r) => (
                   <TableRow key={r.hour} className={r.isOverstated ? 'bg-red-50/60' : undefined}>
-                    <TableCell className="font-bold text-slate-900">{String(r.hour).padStart(2, '0')}:00</TableCell>
+                    <TableCell className="font-semibold text-slate-800">{String(r.hour).padStart(2, '0')}:00</TableCell>
                     <TableCell>{fmtKwh(r.predictedKwh)}</TableCell>
                     <TableCell>{fmtKwh(r.amiKwh)}</TableCell>
-                    <TableCell className={r.isOverstated ? 'font-black text-red-700' : 'text-slate-700'}>
+                    <TableCell className={r.isOverstated ? 'font-semibold text-rose-600' : 'text-slate-700'}>
                       {r.predictedKwh > r.amiKwh ? fmtPct(r.positiveDeviationRate) : '-'}
                     </TableCell>
                     <TableCell>
@@ -438,7 +451,7 @@ export default function DailyCheckingPage() {
                         <Badge variant="secondary">正常</Badge>
                       )}
                     </TableCell>
-                    <TableCell className={r.invalidTransferKwh > 0 ? 'font-black text-red-700' : 'text-slate-700'}>
+                    <TableCell className={r.invalidTransferKwh > 0 ? 'font-semibold text-rose-600' : 'text-slate-700'}>
                       {r.invalidTransferKwh > 0 ? fmtKwh(r.invalidTransferKwh) : '-'}
                     </TableCell>
                     <TableCell className="max-w-[420px] whitespace-normal text-xs font-semibold text-slate-700">
