@@ -388,7 +388,9 @@ export default function DailyCheckingPage() {
               <Badge variant={anomalyHours > 0 ? 'destructive' : 'secondary'}>
                 異常時段 {anomalyHours} / 24
               </Badge>
-              <Badge variant="outline">平均正向偏差 {fmtPct(avgPositiveDev)}</Badge>
+              <Badge variant="outline" className="border-black text-black">
+                平均正向偏差 {fmtPct(avgPositiveDev)}
+              </Badge>
             </div>
           </div>
         </CardHeader>
@@ -412,7 +414,14 @@ export default function DailyCheckingPage() {
             <div className="rounded-xl border border-black bg-white p-4 text-slate-800">
               <div className="text-xs font-semibold text-slate-600">風險摘要</div>
               <div className="mt-1 flex items-center gap-2">
-                <Badge variant={shouldInvalidateDay ? 'destructive' : 'secondary'}>
+                <Badge
+                  variant={shouldInvalidateDay ? 'destructive' : 'secondary'}
+                  className={
+                    shouldInvalidateDay
+                      ? undefined
+                      : 'border-transparent bg-green-600 text-white hover:bg-green-600/90'
+                  }
+                >
                   {shouldInvalidateDay ? '疑似啟動移轉失效（試算）' : '未達失效條件（試算）'}
                 </Badge>
               </div>
@@ -446,7 +455,7 @@ export default function DailyCheckingPage() {
           <div className="mt-4 rounded-xl border border-black bg-white">
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="hover:bg-slate-50">
                   <TableHead>時段</TableHead>
                   <TableHead>預測（kWh）</TableHead>
                   <TableHead>AMI（kWh）</TableHead>
@@ -458,7 +467,12 @@ export default function DailyCheckingPage() {
               </TableHeader>
               <TableBody>
                 {rows.map((r) => (
-                  <TableRow key={r.hour} className={r.isOverstated ? 'bg-red-50/60' : undefined}>
+                  <TableRow
+                    key={r.hour}
+                    className={
+                      r.isOverstated ? 'bg-red-50/60 hover:bg-red-100/50' : 'hover:bg-slate-50'
+                    }
+                  >
                     <TableCell className="font-semibold text-slate-800">{String(r.hour).padStart(2, '0')}:00</TableCell>
                     <TableCell>{fmtKwh(r.predictedKwh)}</TableCell>
                     <TableCell>{fmtKwh(r.amiKwh)}</TableCell>
@@ -469,7 +483,12 @@ export default function DailyCheckingPage() {
                       {r.isOverstated ? (
                         <Badge variant="destructive">虛報高估</Badge>
                       ) : (
-                        <Badge variant="secondary">正常</Badge>
+                        <Badge
+                          variant="secondary"
+                          className="border-transparent bg-green-600 text-white hover:bg-green-600/90"
+                        >
+                          正常
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell className={r.invalidTransferKwh > 0 ? 'font-semibold text-rose-600' : 'text-slate-700'}>
