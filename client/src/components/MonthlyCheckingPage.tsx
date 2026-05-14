@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useRegistration } from '@/contexts/RegistrationContext';
+import { cn } from '@/lib/utils';
 
 const LIGHT_CHART_TEXT = '#64748b';
 const LIGHT_AXIS_LINE = '#cbd5e1';
@@ -34,6 +35,9 @@ const LIGHT_CHART_COLORS = {
 const PANEL_CARD_CLASS = 'border border-black bg-white text-slate-800 shadow-none';
 const PANEL_BOX_CLASS = 'rounded-xl border border-black bg-white p-4 text-slate-800';
 const FIELD_CLASS = 'border-slate-300 bg-white text-slate-800';
+/** 有失效量時：半透明紅底；無則白底不警示 */
+const INVALID_BADGE_ALERT = 'border-rose-400/80 bg-rose-500/15 text-rose-900 font-medium shadow-none';
+const INVALID_BADGE_OK = 'border-slate-200 bg-white text-slate-800 font-medium shadow-none';
 const chartFrameStyle = (height: number) => ({
   height,
   backgroundColor: '#ffffff',
@@ -451,7 +455,12 @@ export default function MonthlyCheckingPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">可認列綠電（充電）{fmtKwh(totals.recognized)} kWh</Badge>
-                <Badge variant={totals.invalid > 0 ? 'destructive' : 'secondary'}>失效灰電 {fmtKwh(totals.invalid)} kWh</Badge>
+                <Badge
+                  variant="outline"
+                  className={totals.invalid > 0 ? INVALID_BADGE_ALERT : INVALID_BADGE_OK}
+                >
+                  失效灰電 {fmtKwh(totals.invalid)} kWh
+                </Badge>
               </div>
             </div>
             <div className="mt-3">
@@ -465,16 +474,26 @@ export default function MonthlyCheckingPage() {
           <Separator className="my-6" />
 
           <Tabs defaultValue="detail" className="w-full">
-            <TabsList className="w-full justify-start">
-              <TabsTrigger value="detail">明細表（15 分鐘）</TabsTrigger>
-              <TabsTrigger value="rule">檢核規則與狀態</TabsTrigger>
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-3 bg-transparent p-0">
+              <TabsTrigger
+                value="detail"
+                className="flex-none rounded-lg border-2 border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 data-[state=active]:border-indigo-600 data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+              >
+                明細表（15 分鐘）
+              </TabsTrigger>
+              <TabsTrigger
+                value="rule"
+                className="flex-none rounded-lg border-2 border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 data-[state=active]:border-emerald-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+              >
+                檢核規則與狀態
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="detail" className="pt-4">
               <div className="rounded-xl border border-black bg-white">
                 <Table>
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="hover:bg-slate-50">
                       <TableHead>時段</TableHead>
                       <TableHead>結算用發電（kWh）</TableHead>
                       <TableHead>結算用用電（kWh）</TableHead>
@@ -485,7 +504,12 @@ export default function MonthlyCheckingPage() {
                   </TableHeader>
                   <TableBody>
                     {rows.slice(0, 48).map((r) => (
-                      <TableRow key={r.slot} className={r.isInvalid ? 'bg-red-50/60' : undefined}>
+                      <TableRow
+                        key={r.slot}
+                        className={
+                          r.isInvalid ? 'bg-red-50/60 hover:bg-red-100/50' : 'hover:bg-slate-50'
+                        }
+                      >
                         <TableCell className="font-bold text-slate-800">{r.slot.slice(11)}</TableCell>
                         <TableCell>{fmtKwh(r.settlementGenKwh)}</TableCell>
                         <TableCell>{fmtKwh(r.settlementLoadKwh)}</TableCell>
@@ -512,16 +536,30 @@ export default function MonthlyCheckingPage() {
                     <CardDescription>嚴格 or 容許（處理四捨五入/對時誤差）</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-3">
                       <Button
-                        variant={greyRuleMode === 'strict' ? 'default' : 'secondary'}
+                        type="button"
+                        variant="outline"
                         onClick={() => setGreyRuleMode('strict')}
+                        className={cn(
+                          'min-w-[96px] border-2 font-semibold',
+                          greyRuleMode === 'strict'
+                            ? 'border-rose-800 bg-rose-800 text-white hover:bg-rose-800/90 hover:text-white'
+                            : 'border-rose-200 bg-white text-rose-900 hover:bg-rose-50'
+                        )}
                       >
                         嚴格
                       </Button>
                       <Button
-                        variant={greyRuleMode === 'tolerant' ? 'default' : 'secondary'}
+                        type="button"
+                        variant="outline"
                         onClick={() => setGreyRuleMode('tolerant')}
+                        className={cn(
+                          'min-w-[96px] border-2 font-semibold',
+                          greyRuleMode === 'tolerant'
+                            ? 'border-emerald-700 bg-emerald-600 text-white hover:bg-emerald-600/90 hover:text-white'
+                            : 'border-emerald-200 bg-white text-emerald-900 hover:bg-emerald-50'
+                        )}
                       >
                         容許
                       </Button>
@@ -563,10 +601,24 @@ export default function MonthlyCheckingPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={totals.invalid > 0 ? 'destructive' : 'secondary'}>
+                      <Badge
+                        variant="outline"
+                        className={
+                          totals.invalidSlots === 0 && totals.invalid === 0
+                            ? INVALID_BADGE_OK
+                            : INVALID_BADGE_ALERT
+                        }
+                      >
                         失效時段 {totals.invalidSlots} / {rows.length}
                       </Badge>
-                      <Badge variant={totals.invalid > 0 ? 'destructive' : 'secondary'}>
+                      <Badge
+                        variant="outline"
+                        className={
+                          totals.invalidSlots === 0 && totals.invalid === 0
+                            ? INVALID_BADGE_OK
+                            : INVALID_BADGE_ALERT
+                        }
+                      >
                         失效灰電合計 {fmtKwh(totals.invalid)} kWh
                       </Badge>
                     </div>
@@ -594,7 +646,13 @@ export default function MonthlyCheckingPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div>
-                    <Badge variant={totals.invalid > 0 ? 'destructive' : 'secondary'} className="cursor-default">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'cursor-default',
+                        totals.invalid > 0 ? INVALID_BADGE_ALERT : INVALID_BADGE_OK
+                      )}
+                    >
                       失效灰電 {fmtKwh(totals.invalid)} kWh
                     </Badge>
                   </div>
@@ -617,7 +675,7 @@ export default function MonthlyCheckingPage() {
           <div className="rounded-xl border border-black bg-white">
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="hover:bg-slate-50">
                   <TableHead>時段</TableHead>
                   <TableHead>移轉存入（kWh）</TableHead>
                   <TableHead>結算用發電（kWh）</TableHead>
@@ -628,7 +686,12 @@ export default function MonthlyCheckingPage() {
               </TableHeader>
               <TableBody>
                 {(invalidRows.length > 0 ? invalidRows : rows.slice(0, 12)).map((r) => (
-                  <TableRow key={`inv-${r.slot}`} className={r.invalidGreyChargeKwh > 0 ? 'bg-red-50/60' : undefined}>
+                  <TableRow
+                    key={`inv-${r.slot}`}
+                    className={
+                      r.invalidGreyChargeKwh > 0 ? 'bg-red-50/60 hover:bg-red-100/50' : 'hover:bg-slate-50'
+                    }
+                  >
                     <TableCell className="font-bold text-slate-800">{r.slot.slice(11)}</TableCell>
                     <TableCell className="font-semibold text-slate-800">{fmtKwh(r.platformTransferToStorageKwh)}</TableCell>
                     <TableCell>{fmtKwh(r.settlementGenKwh)}</TableCell>
