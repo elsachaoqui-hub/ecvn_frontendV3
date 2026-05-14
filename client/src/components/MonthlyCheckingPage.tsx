@@ -501,7 +501,7 @@ export default function MonthlyCheckingPage() {
               <div className="rounded-xl border border-black bg-white">
                 <Table>
                   <TableHeader>
-                    <TableRow className="hover:bg-slate-50">
+                    <TableRow className="hover:bg-slate-50 [&_th]:text-black">
                       <TableHead>時段</TableHead>
                       <TableHead>結算用發電（kWh）</TableHead>
                       <TableHead>結算用用電（kWh）</TableHead>
