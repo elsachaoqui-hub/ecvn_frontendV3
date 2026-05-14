@@ -29,6 +29,10 @@ const LIGHT_CHART_COLORS = {
 const PANEL_CARD_CLASS = 'border border-black bg-white text-slate-800 shadow-none';
 const PANEL_BOX_CLASS = 'rounded-xl border border-black bg-white p-4 text-slate-800';
 const FIELD_CLASS = 'border-slate-300 bg-white text-slate-800';
+/** 異常時段 Badge：0/24 白底；有異常則紅底警示 */
+const ANOMALY_BADGE_OK = 'border-slate-200 bg-white text-slate-800 font-medium shadow-none';
+/** 失效移轉合計等：有數值時半透明紅底 */
+const SEMI_RED_BADGE_ALERT = 'border-rose-400/80 bg-rose-500/15 text-rose-900 font-medium shadow-none';
 const CHART_TOOLTIP = {
   trigger: 'axis' as const,
   backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -385,7 +389,10 @@ export default function DailyCheckingPage() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={anomalyHours > 0 ? 'destructive' : 'secondary'}>
+              <Badge
+                variant={anomalyHours > 0 ? 'destructive' : 'outline'}
+                className={anomalyHours > 0 ? undefined : ANOMALY_BADGE_OK}
+              >
                 異常時段 {anomalyHours} / 24
               </Badge>
               <Badge variant="outline" className="border-black text-black">
@@ -443,7 +450,12 @@ export default function DailyCheckingPage() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={invalidTransferTotal > 0 ? 'destructive' : 'secondary'}>
+              <Badge
+                variant="outline"
+                className={
+                  invalidTransferTotal > 0 ? SEMI_RED_BADGE_ALERT : ANOMALY_BADGE_OK
+                }
+              >
                 失效移轉合計 {fmtKwh(invalidTransferTotal)} kWh
               </Badge>
             </div>
@@ -481,7 +493,9 @@ export default function DailyCheckingPage() {
                     </TableCell>
                     <TableCell>
                       {r.isOverstated ? (
-                        <Badge variant="destructive">虛報高估</Badge>
+                        <Badge variant="outline" className={SEMI_RED_BADGE_ALERT}>
+                          虛報高估
+                        </Badge>
                       ) : (
                         <Badge
                           variant="secondary"
