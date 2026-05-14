@@ -432,9 +432,15 @@ export default function MonthlyCheckingPage() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">結算用發電 {fmtKwh(totals.gen)} kWh</Badge>
-              <Badge variant="outline">結算用用電 {fmtKwh(totals.load)} kWh</Badge>
-              <Badge variant="outline">移轉存入儲能 {fmtKwh(totals.transfer)} kWh</Badge>
+              <Badge variant="outline" className="text-black">
+                結算用發電 {fmtKwh(totals.gen)} kWh
+              </Badge>
+              <Badge variant="outline" className="text-black">
+                結算用用電 {fmtKwh(totals.load)} kWh
+              </Badge>
+              <Badge variant="outline" className="text-black">
+                移轉存入儲能 {fmtKwh(totals.transfer)} kWh
+              </Badge>
             </div>
           </div>
         </CardHeader>
@@ -454,7 +460,9 @@ export default function MonthlyCheckingPage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">可認列綠電（充電）{fmtKwh(totals.recognized)} kWh</Badge>
+                <Badge variant="outline" className="text-black">
+                  可認列綠電（充電）{fmtKwh(totals.recognized)} kWh
+                </Badge>
                 <Badge
                   variant="outline"
                   className={totals.invalid > 0 ? INVALID_BADGE_ALERT : INVALID_BADGE_OK}
@@ -675,7 +683,7 @@ export default function MonthlyCheckingPage() {
           <div className="rounded-xl border border-black bg-white">
             <Table>
               <TableHeader>
-                <TableRow className="hover:bg-slate-50">
+                <TableRow className="hover:bg-slate-50 [&_th]:text-black">
                   <TableHead>時段</TableHead>
                   <TableHead>移轉存入（kWh）</TableHead>
                   <TableHead>結算用發電（kWh）</TableHead>
