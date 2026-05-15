@@ -1,6 +1,17 @@
 import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 
 type HourRow = {
   hour: number;
@@ -153,6 +164,85 @@ function pickRowsByGranularity(rows: HourRow[], granularity: SankeyGranularity):
   return rows.filter((r) => r.hour % 4 === 0);
 }
 
+const MONTH_NAMES_TW = [
+  '一月',
+  '二月',
+  '三月',
+  '四月',
+  '五月',
+  '六月',
+  '七月',
+  '八月',
+  '九月',
+  '十月',
+  '十一月',
+  '十二月',
+] as const;
+
+type SankeyDetailDayRow = {
+  dateLabel: string;
+  generation: number;
+  load: number;
+  storageIn: number;
+  storageBalance: number;
+  storageOut: number;
+  contractMatched: number;
+  totalMatched: number;
+};
+
+function pad2(n: number) {
+  return String(n).padStart(2, '0');
+}
+
+function ymd(year: number, month1to12: number, day: number) {
+  return `${year}-${pad2(month1to12)}-${pad2(day)}`;
+}
+
+/** 示範規則：未來曆月不可點；其餘視為已結算可下鑽 */
+function isSankeyMonthSelectable(year: number, month1to12: number) {
+  const t = new Date();
+  const y = t.getFullYear();
+  const m = t.getMonth() + 1;
+  if (year > y) return false;
+  if (year < y) return true;
+  return month1to12 <= m;
+}
+
+function aggregateSankeyMonth(
+  rows: SankeyDetailDayRow[],
+  year: number,
+  month1to12: number
+): SankeyDetailDayRow | null {
+  const inMonth = rows.filter((r) => {
+    const [ry, rm] = r.dateLabel.slice(0, 10).split('-').map(Number);
+    return ry === year && rm === month1to12;
+  });
+  if (inMonth.length === 0) return null;
+  const sorted = [...inMonth].sort((a, b) => a.dateLabel.localeCompare(b.dateLabel));
+  const sums = sorted.reduce(
+    (acc, r) => ({
+      generation: acc.generation + r.generation,
+      load: acc.load + r.load,
+      storageIn: acc.storageIn + r.storageIn,
+      storageOut: acc.storageOut + r.storageOut,
+      contractMatched: acc.contractMatched + r.contractMatched,
+      totalMatched: acc.totalMatched + r.totalMatched,
+    }),
+    { generation: 0, load: 0, storageIn: 0, storageOut: 0, contractMatched: 0, totalMatched: 0 }
+  );
+  const last = sorted[sorted.length - 1];
+  return {
+    dateLabel: `${year}-${pad2(month1to12)}`,
+    generation: Number(sums.generation.toFixed(1)),
+    load: Number(sums.load.toFixed(1)),
+    storageIn: Number(sums.storageIn.toFixed(1)),
+    storageOut: Number(sums.storageOut.toFixed(1)),
+    storageBalance: last.storageBalance,
+    contractMatched: Number(sums.contractMatched.toFixed(1)),
+    totalMatched: Number(sums.totalMatched.toFixed(1)),
+  };
+}
+
 export default function SettlementPreSettlementPage({
   pageHeading = '4.1 預結算 - 桑基匹配圖',
   defaultStyleMode = 'ab',
@@ -160,13 +250,10 @@ export default function SettlementPreSettlementPage({
   const chartDateLabel = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const hourlyRows = useMemo(() => buildHourlyRowsByDate(chartDateLabel), [chartDateLabel]);
   const now = useMemo(() => new Date(), []);
-  const [sankeyDatePreset, setSankeyDatePreset] = useState<'7d' | '30d' | 'all'>('7d');
-  const [sankeyDateStart, setSankeyDateStart] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 6);
-    return d.toISOString().slice(0, 10);
-  });
-  const [sankeyDateEnd, setSankeyDateEnd] = useState(() => new Date().toISOString().slice(0, 10));
+  const [sankeyExplorerYear, setSankeyExplorerYear] = useState(() => new Date().getFullYear());
+  const [sankeyExplorerView, setSankeyExplorerView] = useState<'year' | 'daily' | 'quarter'>('year');
+  const [sankeyExplorerMonth, setSankeyExplorerMonth] = useState<number | null>(null);
+  const [sankeyExplorerDay, setSankeyExplorerDay] = useState<string | null>(null);
   const [selectedSankeyDate, setSelectedSankeyDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const quarterRows = useMemo(() => expandHourlyToQuarterRows(hourlyRows, chartDateLabel), [hourlyRows, chartDateLabel]);
@@ -296,16 +383,62 @@ export default function SettlementPreSettlementPage({
 
   const sankeyDisplayDateText = useMemo(() => `日期：${selectedSankeyDate}`, [selectedSankeyDate]);
 
-  const filteredSankeyDetailRows = useMemo(() => {
-    if (sankeyDatePreset === 'all') return sankeyDetailRows;
-    const end = new Date(`${sankeyDateEnd}T23:59:59`);
-    const start = new Date(`${sankeyDateStart}T00:00:00`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return sankeyDetailRows;
-    return sankeyDetailRows.filter((row) => {
-      const rowDate = new Date(`${row.dateLabel.slice(0, 10)}T12:00:00`);
-      return rowDate.getTime() >= start.getTime() && rowDate.getTime() <= end.getTime();
+  const sankeyExplorerYearOptions = useMemo(() => {
+    const ys = new Set<number>();
+    sankeyDetailRows.forEach((r) => ys.add(Number(r.dateLabel.slice(0, 4))));
+    const cy = new Date().getFullYear();
+    ys.add(cy);
+    ys.add(cy + 1);
+    return Array.from(ys).sort((a, b) => a - b);
+  }, [sankeyDetailRows]);
+
+  const sankeyMonthlyRowsForYear = useMemo(() => {
+    return MONTH_NAMES_TW.map((label, idx) => {
+      const month = idx + 1;
+      const selectable = isSankeyMonthSelectable(sankeyExplorerYear, month);
+      const agg = aggregateSankeyMonth(sankeyDetailRows as SankeyDetailDayRow[], sankeyExplorerYear, month);
+      return { month, label, selectable, hasData: agg !== null, row: agg };
     });
-  }, [sankeyDateEnd, sankeyDatePreset, sankeyDateStart, sankeyDetailRows]);
+  }, [sankeyDetailRows, sankeyExplorerYear]);
+
+  const sankeyDailyRowsForExplorer = useMemo(() => {
+    if (sankeyExplorerView !== 'daily' || sankeyExplorerMonth == null) return [];
+    return (sankeyDetailRows as SankeyDetailDayRow[])
+      .filter((r) => {
+        const [y, mm] = r.dateLabel.slice(0, 10).split('-').map(Number);
+        return y === sankeyExplorerYear && mm === sankeyExplorerMonth;
+      })
+      .sort((a, b) => b.dateLabel.localeCompare(a.dateLabel));
+  }, [sankeyDetailRows, sankeyExplorerMonth, sankeyExplorerView, sankeyExplorerYear]);
+
+  const explorerQuarterRows = useMemo(() => {
+    if (!sankeyExplorerDay) return [];
+    const hourly = buildHourlyRowsByDate(sankeyExplorerDay);
+    return expandHourlyToQuarterRows(hourly, sankeyExplorerDay);
+  }, [sankeyExplorerDay]);
+
+  const explorerDayPrevBalance = useMemo(() => {
+    if (!sankeyExplorerDay) return 6;
+    const asc = [...(sankeyDetailRows as SankeyDetailDayRow[])].sort((a, b) =>
+      a.dateLabel.localeCompare(b.dateLabel)
+    );
+    const idx = asc.findIndex((r) => r.dateLabel === sankeyExplorerDay);
+    if (idx <= 0) return 6;
+    return asc[idx - 1].storageBalance;
+  }, [sankeyDetailRows, sankeyExplorerDay]);
+
+  const explorerQuarterDisplay = useMemo(() => {
+    if (explorerQuarterRows.length === 0) return [];
+    let run = explorerDayPrevBalance;
+    return explorerQuarterRows.map((row) => {
+      const stIn = Math.max(row.storageActual, 0);
+      const stOut = Math.max(-row.storageActual, 0);
+      run = Number((run + row.storageActual).toFixed(3));
+      const contractMatched = Number(Math.min(row.generationActual, row.loadActual * 0.35).toFixed(3));
+      const totalMatched = Number((contractMatched + stOut).toFixed(3));
+      return { row, stIn, stOut, runBalance: run, contractMatched, totalMatched };
+    });
+  }, [explorerDayPrevBalance, explorerQuarterRows]);
 
   const storageSettlementQuarterRows = useMemo(
     () =>
@@ -331,6 +464,21 @@ export default function SettlementPreSettlementPage({
   const [showSankeyTable, setShowSankeyTable] = useState(false);
   const [showAllocationTable, setShowAllocationTable] = useState(false);
   const [showStorageTable, setShowStorageTable] = useState(false);
+  const [notedDays, setNotedDays] = useState<Record<string, boolean>>({});
+  const [slotOverrides, setSlotOverrides] = useState<
+    Record<string, { generationActual?: number; loadActual?: number; reason?: string }>
+  >({});
+  const [slotVendorOk, setSlotVendorOk] = useState<Record<string, boolean>>({});
+  const [editTarget, setEditTarget] = useState<{
+    slotKey: string;
+    field: 'generationActual' | 'loadActual';
+    label: string;
+    original: number;
+    currentShown: number;
+    draft: string;
+    reason: string;
+  } | null>(null);
+  const [saveToast, setSaveToast] = useState(false);
   /** RE 年度目標（%）；累計區間起迄可自訂，預設帶入資料可用範圍 */
   const [reAnnualTargetPct, setReAnnualTargetPct] = useState(90);
   const [reCumStart, setReCumStart] = useState('');
@@ -375,6 +523,18 @@ export default function SettlementPreSettlementPage({
     if (idx >= 0 && idx < sankeyDetailRows.length - 1) return sankeyDetailRows[idx + 1].storageBalance;
     return sankeyDetailRows[0]?.storageBalance ?? 0;
   }, [sankeyDetailRows, selectedSankeyDate]);
+
+  useEffect(() => {
+    if (sankeyExplorerView === 'quarter' && sankeyExplorerDay) {
+      setSelectedSankeyDate(sankeyExplorerDay);
+    }
+  }, [sankeyExplorerView, sankeyExplorerDay]);
+
+  useEffect(() => {
+    if (!saveToast) return;
+    const t = window.setTimeout(() => setSaveToast(false), 800);
+    return () => window.clearTimeout(t);
+  }, [saveToast]);
 
   const sankeyModel = useMemo(() => {
     if (sankeyFlowView === 'charge') {
@@ -672,6 +832,17 @@ export default function SettlementPreSettlementPage({
             >
               帶入資料全日區間
             </button>
+            <div className="mt-3 flex w-full flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
+              <span className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                資料來源：AMI(量測)
+              </span>
+              <span className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
+                資料來源：M表(量測)
+              </span>
+              <span className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                資料來源：計畫量
+              </span>
+            </div>
           </div>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
@@ -708,152 +879,76 @@ export default function SettlementPreSettlementPage({
       ) : null}
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">資料來源：AMI(量測)</span>
-          <span className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">資料來源：M表(量測)</span>
-          <span className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">資料來源：計畫量</span>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-bold text-slate-900">{pageHeading}</h3>
         <div className="mb-5 mt-4 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
-          <p className="mb-3 text-sm font-black text-slate-900">桑基匹配明細表（可點日期跳回桑基圖）</p>
-          <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <span className="mr-1 text-xs font-black text-slate-700">日期篩選：</span>
-            <button
-              type="button"
-              onClick={() => {
-                const end = new Date(now);
-                const start = new Date(now);
-                start.setDate(end.getDate() - 6);
-                setSankeyDatePreset('7d');
-                setSankeyDateStart(start.toISOString().slice(0, 10));
-                setSankeyDateEnd(end.toISOString().slice(0, 10));
-              }}
-              className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyDatePreset === '7d' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-            >
-              近7天（預設）
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const end = new Date(now);
-                const start = new Date(now);
-                start.setDate(end.getDate() - 29);
-                setSankeyDatePreset('30d');
-                setSankeyDateStart(start.toISOString().slice(0, 10));
-                setSankeyDateEnd(end.toISOString().slice(0, 10));
-              }}
-              className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyDatePreset === '30d' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-            >
-              近30天
-            </button>
-            <button
-              type="button"
-              onClick={() => setSankeyDatePreset('all')}
-              className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyDatePreset === 'all' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-            >
-              全部
-            </button>
-            <div className="ml-auto flex items-end gap-2">
-              <div>
-                <label className="mb-1 block text-[10px] font-bold text-slate-600">起日</label>
-                <input
-                  type="date"
-                  value={sankeyDateStart}
-                  onChange={(e) => {
-                    setSankeyDatePreset('7d');
-                    setSankeyDateStart(e.target.value);
-                  }}
-                  className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[10px] font-bold text-slate-600">迄日</label>
-                <input
-                  type="date"
-                  value={sankeyDateEnd}
-                  onChange={(e) => {
-                    setSankeyDatePreset('7d');
-                    setSankeyDateEnd(e.target.value);
-                  }}
-                  className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
-                />
+          <p className="mb-2 text-sm font-black text-slate-900">
+            桑基匹配明細表（依年度彙總；可下鑽至日與 15 分鐘並編輯示範數值）
+          </p>
+          <p className="mb-3 text-xs font-semibold text-slate-600">
+            選擇年度後，已結算月份可點選；未結算月份為灰色。由【詳細資料】進入每日明細，再進入 15
+            分鐘可編輯量測值並填寫原因；異常以紅色標示，廠商確認後改為綠色。
+          </p>
+          <div className="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-600">資料年度</label>
+              <select
+                value={sankeyExplorerYear}
+                onChange={(e) => {
+                  setSankeyExplorerYear(Number(e.target.value));
+                  setSankeyExplorerView('year');
+                  setSankeyExplorerMonth(null);
+                  setSankeyExplorerDay(null);
+                }}
+                className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800"
+              >
+                {sankeyExplorerYearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y} 年
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-1 flex-wrap gap-2">
+              <span className="w-full text-[10px] font-bold text-slate-600">月份（已結算可點）</span>
+              <div className="flex w-full flex-wrap gap-1.5">
+                {sankeyMonthlyRowsForYear.map(({ month, label, selectable }) => (
+                  <button
+                    key={month}
+                    type="button"
+                    disabled={!selectable}
+                    onClick={() => {
+                      if (!selectable) return;
+                      setSankeyExplorerMonth(month);
+                      setSankeyExplorerView('daily');
+                      setSelectedSankeyDate(ymd(sankeyExplorerYear, month, 1));
+                    }}
+                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                      selectable
+                        ? sankeyExplorerMonth === month
+                          ? 'bg-blue-700 text-white'
+                          : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                        : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
-          <div className="max-h-[570px] overflow-auto rounded-lg border border-slate-200">
-            <table className="min-w-full text-sm">
-              <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
-                <tr>
-                  <th className="px-3 py-2 text-left font-bold">日期</th>
-                  <th className="px-3 py-2 text-right font-bold">發電端</th>
-                  <th className="px-3 py-2 text-right font-bold">用電端</th>
-                  <th className="px-3 py-2 text-right font-bold">
-                    <button
-                      type="button"
-                      className="font-bold text-slate-900 underline-offset-2 hover:underline"
-                      onClick={() => {
-                        setSankeyFlowView('charge');
-                        const anchor = document.getElementById('sankey-mode-anchor');
-                        if (anchor) {
-                          const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
-                          window.scrollTo({ top: y, behavior: 'smooth' });
-                        }
-                      }}
-                    >
-                      儲能存入(+)
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right font-bold">
-                    <button
-                      type="button"
-                      className="font-bold text-slate-900 underline-offset-2 hover:underline"
-                      onClick={() => {
-                        setSankeyFlowView('discharge');
-                        const anchor = document.getElementById('sankey-mode-anchor');
-                        if (anchor) {
-                          const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
-                          window.scrollTo({ top: y, behavior: 'smooth' });
-                        }
-                      }}
-                    >
-                      儲能提領(-)
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right font-bold">儲能餘額(∑)</th>
-                  <th className="px-3 py-2 text-right font-bold text-blue-700">合約匹配量</th>
-                  <th className="px-3 py-2 text-right font-bold text-blue-700">總匹配量(儲能提領+合約匹配量)</th>
-                </tr>
-              </thead>
-              <tbody className="text-slate-900">
-                {filteredSankeyDetailRows.map((row, idx) => (
-                  <tr key={`sankey-detail-${idx}`} className="border-t border-slate-200">
-                    <td className="px-3 py-2">
+          <div className="max-h-[620px] overflow-auto rounded-lg border border-slate-200">
+            {sankeyExplorerView === 'year' ? (
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-bold">時間</th>
+                    <th className="px-3 py-2 text-right font-bold">發電端</th>
+                    <th className="px-3 py-2 text-right font-bold">用電端</th>
+                    <th className="px-3 py-2 text-right font-bold">
                       <button
                         type="button"
-                        className="font-semibold text-blue-700 underline-offset-2 hover:underline"
+                        className="font-bold text-slate-900 underline-offset-2 hover:underline"
                         onClick={() => {
-                          setSelectedSankeyDate(row.dateLabel);
-                          const anchor = document.getElementById('sankey-mode-anchor');
-                          if (anchor) {
-                            const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
-                            window.scrollTo({ top: y, behavior: 'smooth' });
-                          }
-                        }}
-                      >
-                        {row.dateLabel}
-                      </button>
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.generation.toFixed(1)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.load.toFixed(1)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      <button
-                        type="button"
-                        className="font-semibold text-slate-900 underline-offset-2 hover:underline"
-                        onClick={() => {
-                          setSelectedSankeyDate(row.dateLabel);
                           setSankeyFlowView('charge');
                           const anchor = document.getElementById('sankey-mode-anchor');
                           if (anchor) {
@@ -862,15 +957,14 @@ export default function SettlementPreSettlementPage({
                           }
                         }}
                       >
-                        {row.storageIn.toFixed(1)}
+                        儲能存入(+)
                       </button>
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    </th>
+                    <th className="px-3 py-2 text-right font-bold">
                       <button
                         type="button"
-                        className="font-semibold text-slate-900 underline-offset-2 hover:underline"
+                        className="font-bold text-slate-900 underline-offset-2 hover:underline"
                         onClick={() => {
-                          setSelectedSankeyDate(row.dateLabel);
                           setSankeyFlowView('discharge');
                           const anchor = document.getElementById('sankey-mode-anchor');
                           if (anchor) {
@@ -879,20 +973,392 @@ export default function SettlementPreSettlementPage({
                           }
                         }}
                       >
-                        {row.storageOut.toFixed(1)}
+                        儲能提領(-)
                       </button>
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-900">
-                      {row.storageBalance.toFixed(1)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-blue-700">{row.contractMatched.toFixed(1)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-700">{row.totalMatched.toFixed(1)}</td>
+                    </th>
+                    <th className="px-3 py-2 text-right font-bold">儲能餘額(∑)</th>
+                    <th className="px-3 py-2 text-right font-bold text-blue-700">合約匹配量</th>
+                    <th className="px-3 py-2 text-right font-bold text-blue-700">總匹配量</th>
+                    <th className="px-3 py-2 text-center font-bold">操作</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="text-slate-900">
+                  {sankeyMonthlyRowsForYear.map(({ month, label, selectable, row }) => {
+                    const z =
+                      row ??
+                      ({
+                        generation: 0,
+                        load: 0,
+                        storageIn: 0,
+                        storageOut: 0,
+                        storageBalance: 0,
+                        contractMatched: 0,
+                        totalMatched: 0,
+                      } as SankeyDetailDayRow);
+                    return (
+                      <tr key={month} className="border-t border-slate-200">
+                        <td className="px-3 py-2 font-bold">{label}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{z.generation.toFixed(1)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{z.load.toFixed(1)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          <button
+                            type="button"
+                            className="font-semibold text-slate-900 underline-offset-2 hover:underline"
+                            onClick={() => {
+                              setSelectedSankeyDate(ymd(sankeyExplorerYear, month, 1));
+                              setSankeyFlowView('charge');
+                              const anchor = document.getElementById('sankey-mode-anchor');
+                              if (anchor) {
+                                const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
+                                window.scrollTo({ top: y, behavior: 'smooth' });
+                              }
+                            }}
+                          >
+                            {z.storageIn.toFixed(1)}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          <button
+                            type="button"
+                            className="font-semibold text-slate-900 underline-offset-2 hover:underline"
+                            onClick={() => {
+                              setSelectedSankeyDate(ymd(sankeyExplorerYear, month, 1));
+                              setSankeyFlowView('discharge');
+                              const anchor = document.getElementById('sankey-mode-anchor');
+                              if (anchor) {
+                                const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
+                                window.scrollTo({ top: y, behavior: 'smooth' });
+                              }
+                            }}
+                          >
+                            {z.storageOut.toFixed(1)}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold">{z.storageBalance.toFixed(1)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-blue-700">{z.contractMatched.toFixed(1)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-700">{z.totalMatched.toFixed(1)}</td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            type="button"
+                            disabled={!selectable}
+                            onClick={() => {
+                              if (!selectable) return;
+                              setSankeyExplorerView('daily');
+                              setSankeyExplorerMonth(month);
+                              setSelectedSankeyDate(ymd(sankeyExplorerYear, month, 1));
+                            }}
+                            className={`rounded-md border px-2 py-1 text-xs font-bold ${
+                              selectable
+                                ? 'border-blue-600 bg-blue-50 text-blue-800 hover:bg-blue-100'
+                                : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                            }`}
+                          >
+                            詳細資料
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : null}
+            {sankeyExplorerView === 'daily' && sankeyExplorerMonth != null ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-2 py-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSankeyExplorerView('year');
+                      setSankeyExplorerMonth(null);
+                      setSankeyExplorerDay(null);
+                    }}
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                  >
+                    返回年度
+                  </button>
+                  <span className="text-xs font-bold text-slate-600">
+                    {sankeyExplorerYear} 年 {MONTH_NAMES_TW[sankeyExplorerMonth - 1]} · 日明細
+                  </span>
+                </div>
+                <table className="min-w-full text-sm">
+                  <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-bold">日期</th>
+                      <th className="px-3 py-2 text-right font-bold">發電端</th>
+                      <th className="px-3 py-2 text-right font-bold">用電端</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能存入(+)</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能提領(-)</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能餘額(∑)</th>
+                      <th className="px-3 py-2 text-right font-bold text-blue-700">合約匹配量</th>
+                      <th className="px-3 py-2 text-right font-bold text-blue-700">總匹配量</th>
+                      <th className="px-3 py-2 text-center font-bold">註記</th>
+                      <th className="px-3 py-2 text-center font-bold">取消註記</th>
+                      <th className="px-3 py-2 text-center font-bold">詳細資料</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sankeyDailyRowsForExplorer.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="px-3 py-6 text-center text-sm font-semibold text-slate-500">
+                          本月示範資料尚無列；可換選有資料的月份或調整年度。
+                        </td>
+                      </tr>
+                    ) : (
+                      sankeyDailyRowsForExplorer.map((row) => (
+                        <tr key={row.dateLabel} className="border-t border-slate-200 text-slate-900">
+                          <td className="px-3 py-2 font-semibold text-blue-800">{row.dateLabel}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{row.generation.toFixed(1)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{row.load.toFixed(1)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{row.storageIn.toFixed(1)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{row.storageOut.toFixed(1)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-semibold">{row.storageBalance.toFixed(1)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-blue-700">{row.contractMatched.toFixed(1)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-700">{row.totalMatched.toFixed(1)}</td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              disabled={!!notedDays[row.dateLabel]}
+                              onClick={() => setNotedDays((p) => ({ ...p, [row.dateLabel]: true }))}
+                              className="rounded border border-amber-400 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900 disabled:opacity-40"
+                            >
+                              註記
+                            </button>
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              disabled={!notedDays[row.dateLabel]}
+                              onClick={() =>
+                                setNotedDays((p) => {
+                                  const n = { ...p };
+                                  delete n[row.dateLabel];
+                                  return n;
+                                })
+                              }
+                              className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-700 disabled:opacity-40"
+                            >
+                              取消註記
+                            </button>
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSankeyExplorerView('quarter');
+                                setSankeyExplorerDay(row.dateLabel);
+                              }}
+                              className="rounded-md border border-blue-600 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
+                            >
+                              詳細資料
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </>
+            ) : null}
+            {sankeyExplorerView === 'quarter' && sankeyExplorerDay ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-2 py-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSankeyExplorerView('daily');
+                      setSankeyExplorerDay(null);
+                    }}
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                  >
+                    返回每日
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSankeyExplorerView('year');
+                      setSankeyExplorerMonth(null);
+                      setSankeyExplorerDay(null);
+                    }}
+                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50"
+                  >
+                    返回年度
+                  </button>
+                  <span className="text-xs font-bold text-slate-600">15 分鐘 · {sankeyExplorerDay}</span>
+                </div>
+                <table className="min-w-[1080px] text-xs">
+                  <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
+                    <tr>
+                      <th className="px-2 py-2 text-left font-bold">時間</th>
+                      <th className="px-2 py-2 text-right font-bold">發電端(量測)</th>
+                      <th className="px-2 py-2 text-right font-bold">用電端(量測)</th>
+                      <th className="px-2 py-2 text-right font-bold">儲能(+)</th>
+                      <th className="px-2 py-2 text-right font-bold">儲能(-)</th>
+                      <th className="px-2 py-2 text-right font-bold">儲能餘額(∑)</th>
+                      <th className="px-2 py-2 text-right font-bold text-blue-700">合約匹配</th>
+                      <th className="px-2 py-2 text-right font-bold text-blue-700">總匹配</th>
+                      <th className="px-2 py-2 text-center font-bold">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-slate-900">
+                    {explorerQuarterDisplay.map((line) => {
+                      const sk = `${sankeyExplorerDay}@${line.row.slotIndex}`;
+                      const ovr = slotOverrides[sk] ?? {};
+                      const gen0 = line.row.generationActual;
+                      const load0 = line.row.loadActual;
+                      const gen = ovr.generationActual ?? gen0;
+                      const load = ovr.loadActual ?? load0;
+                      const genAnom = Math.abs(gen - line.row.generationPlan) > Math.max(2, line.row.generationPlan * 0.08);
+                      const loadAnom = Math.abs(load - line.row.loadPlan) > Math.max(2, line.row.loadPlan * 0.08);
+                      const genCls = genAnom ? (slotVendorOk[sk] ? 'text-emerald-600' : 'text-rose-600') : '';
+                      const loadCls = loadAnom ? (slotVendorOk[sk] ? 'text-emerald-600' : 'text-rose-600') : '';
+                      const genEdited = ovr.generationActual != null && ovr.generationActual !== gen0;
+                      const loadEdited = ovr.loadActual != null && ovr.loadActual !== load0;
+                      return (
+                        <tr key={sk} className="border-t border-slate-200">
+                          <td className="px-2 py-1.5 font-mono font-semibold">{line.row.timeLabel}</td>
+                          <td className={`px-2 py-1.5 text-right tabular-nums ${genCls}`}>
+                            {genEdited ? (
+                              <>
+                                <span className="text-slate-900 line-through">{gen0.toFixed(3)}</span>{' '}
+                                <span className="font-semibold text-emerald-600">({gen.toFixed(3)})</span>
+                              </>
+                            ) : (
+                              gen0.toFixed(3)
+                            )}
+                          </td>
+                          <td className={`px-2 py-1.5 text-right tabular-nums ${loadCls}`}>
+                            {loadEdited ? (
+                              <>
+                                <span className="text-slate-900 line-through">{load0.toFixed(3)}</span>{' '}
+                                <span className="font-semibold text-emerald-600">({load.toFixed(3)})</span>
+                              </>
+                            ) : (
+                              load0.toFixed(3)
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{line.stIn.toFixed(3)}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{line.stOut.toFixed(3)}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums font-semibold">{line.runBalance.toFixed(3)}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-blue-700">{line.contractMatched.toFixed(3)}</td>
+                          <td className="px-2 py-1.5 text-right font-semibold text-blue-700">{line.totalMatched.toFixed(3)}</td>
+                          <td className="px-2 py-1.5 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              className="mr-1 text-[11px] font-bold text-blue-700 underline"
+                              onClick={() =>
+                                setEditTarget({
+                                  slotKey: sk,
+                                  field: 'generationActual',
+                                  label: '發電端（量測，kWh）',
+                                  original: gen0,
+                                  currentShown: gen,
+                                  draft: String(gen),
+                                  reason: ovr.reason ?? '',
+                                })
+                              }
+                            >
+                              編輯
+                            </button>
+                            <button
+                              type="button"
+                              className="mr-1 text-[11px] font-bold text-blue-700 underline"
+                              onClick={() =>
+                                setEditTarget({
+                                  slotKey: sk,
+                                  field: 'loadActual',
+                                  label: '用電端（量測，kWh）',
+                                  original: load0,
+                                  currentShown: load,
+                                  draft: String(load),
+                                  reason: ovr.reason ?? '',
+                                })
+                              }
+                            >
+                              用電
+                            </button>
+                            <button
+                              type="button"
+                              className="text-[11px] font-bold text-emerald-800 underline"
+                              onClick={() =>
+                                setSlotVendorOk((p) => ({
+                                  ...p,
+                                  [sk]: !p[sk],
+                                }))
+                              }
+                            >
+                              {slotVendorOk[sk] ? '取消確認' : '廠商確認'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </>
+            ) : null}
           </div>
-          <p className="mt-2 text-xs font-semibold text-slate-700">一次視窗最多呈現約 15 行，其餘可透過表格內捲動檢視。</p>
+          <p className="mt-2 text-xs font-semibold text-slate-700">
+            表格可捲動檢視。15 分鐘層級可編輯量測值並填寫原因；完成後顯示「修改成功」約 0.8 秒。異常數值以紅色標示，廠商確認後改為綠色。
+          </p>
+          <Dialog open={editTarget !== null} onOpenChange={(o) => !o && setEditTarget(null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>修改數值</DialogTitle>
+                <DialogDescription>
+                  {editTarget
+                    ? `欄位：${editTarget.label}；目前顯示：${editTarget.currentShown.toFixed(3)} kWh（原始 ${editTarget.original.toFixed(3)}）`
+                    : ''}
+                </DialogDescription>
+              </DialogHeader>
+              {editTarget ? (
+                <div className="grid gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-600">修改為（kWh）</label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      value={editTarget.draft}
+                      onChange={(e) => setEditTarget((t) => (t ? { ...t, draft: e.target.value } : t))}
+                      className="mt-1 border-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600">原因（追溯用）</label>
+                    <textarea
+                      className="mt-1 min-h-[72px] w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900"
+                      value={editTarget.reason}
+                      onChange={(e) => setEditTarget((t) => (t ? { ...t, reason: e.target.value } : t))}
+                    />
+                  </div>
+                </div>
+              ) : null}
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>
+                  取消
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (!editTarget) return;
+                    const v = Number(editTarget.draft);
+                    if (!Number.isFinite(v)) return;
+                    setSlotOverrides((prev) => ({
+                      ...prev,
+                      [editTarget.slotKey]: {
+                        ...prev[editTarget.slotKey],
+                        [editTarget.field]: v,
+                        reason: editTarget.reason,
+                      },
+                    }));
+                    setEditTarget(null);
+                    setSaveToast(true);
+                  }}
+                >
+                  完成
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div id="sankey-mode-anchor" className="mb-4 flex scroll-mt-4 flex-wrap items-center gap-2">
@@ -1267,6 +1733,11 @@ export default function SettlementPreSettlementPage({
           </table>
         </div>}
       </section>
+      {saveToast ? (
+        <div className="fixed bottom-8 left-1/2 z-[70] -translate-x-1/2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-xl">
+          修改成功
+        </div>
+      ) : null}
     </div>
   );
 }
