@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import DataSourceBar from '@/components/DataSourceBar';
 
 const LIGHT_CHART_TEXT = '#64748b';
 const LIGHT_AXIS_LINE = '#cbd5e1';
@@ -299,6 +300,14 @@ export default function DailyCheckingPage() {
           </Button>
         </div>
       </div>
+
+      <DataSourceBar
+        onApplyFullRange={() => {
+          const d = new Date();
+          d.setDate(d.getDate() - 1);
+          setDate(d.toISOString().slice(0, 10));
+        }}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
         <Card className={PANEL_CARD_CLASS}>

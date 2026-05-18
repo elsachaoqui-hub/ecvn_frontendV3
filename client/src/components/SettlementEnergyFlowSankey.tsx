@@ -17,6 +17,17 @@ export type EnergyFlowAggregate = {
 
 const TEMPLATE_GEN = 1000;
 
+const PALETTE = {
+  generation: '#f59e0b',
+  contract: '#92400e',
+  storage: '#7c3aed',
+  battery: '#0f766e',
+  success: '#059669',
+  surplus: '#ea580c',
+  text: '#0f172a',
+  background: '#f8fafc',
+} as const;
+
 function buildScaledLinks(a: EnergyFlowAggregate) {
   const k = Math.max(a.generation / TEMPLATE_GEN, 0.05);
   const genToContract = Number(Math.max(a.contractMatched * 1.02, 650 * k).toFixed(1));
@@ -60,31 +71,7 @@ export default function SettlementEnergyFlowSankey({
   embedded = false,
 }: SettlementEnergyFlowSankeyProps) {
   const [enlarge, setEnlarge] = useState(false);
-  const [paletteMode, setPaletteMode] = useState<'A' | 'B'>('A');
   const [activeNode, setActiveNode] = useState<string | null>('發電端');
-
-  const palette =
-    paletteMode === 'A'
-      ? {
-          generation: '#f59e0b',
-          contract: '#92400e',
-          storage: '#7c3aed',
-          battery: '#0f766e',
-          success: '#059669',
-          surplus: '#ea580c',
-          text: '#0f172a',
-          background: '#f8fafc',
-        }
-      : {
-          generation: '#78909C',
-          contract: '#90A4AE',
-          storage: '#9575CD',
-          battery: '#B39DDB',
-          success: '#81C784',
-          surplus: '#BDBDBD',
-          text: '#455A64',
-          background: '#F5F5F5',
-        };
 
   const drillTitle =
     drill === 'year' ? '年度彙總' : drill === 'month' ? '月份彙總' : '單日彙總';
@@ -92,7 +79,7 @@ export default function SettlementEnergyFlowSankey({
   const option = useMemo<EChartsOption>(() => {
     const edge = enlarge ? 52 : 44;
     const labelCommon = {
-      color: palette.text,
+      color: PALETTE.text,
       fontSize: enlarge ? 11 : 9,
       fontWeight: 700,
       lineHeight: 15,
@@ -104,15 +91,15 @@ export default function SettlementEnergyFlowSankey({
     const f = buildScaledLinks(aggregate);
 
     const nodes = [
-      { name: '發電端', depth: 0, itemStyle: { color: palette.generation }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
-      { name: '儲能餘額', depth: 0, itemStyle: { color: palette.battery }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
-      { name: '合約數量', depth: 1, itemStyle: { color: palette.contract }, label: { ...labelCommon, position: 'inside' as const } },
-      { name: '儲能', depth: 1, itemStyle: { color: palette.storage }, label: { ...labelCommon, position: 'inside' as const } },
-      { name: '用電端', depth: 2, itemStyle: { color: palette.contract }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
-      { name: '用電端轉移量', depth: 2, itemStyle: { color: palette.contract }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
-      { name: '成功匹配量', depth: 3, itemStyle: { color: palette.success }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
-      { name: '儲能存入量', depth: 3, itemStyle: { color: palette.storage }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
-      { name: '餘電', depth: 3, itemStyle: { color: palette.surplus }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
+      { name: '發電端', depth: 0, itemStyle: { color: PALETTE.generation }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
+      { name: '儲能餘額', depth: 0, itemStyle: { color: PALETTE.battery }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
+      { name: '合約數量', depth: 1, itemStyle: { color: PALETTE.contract }, label: { ...labelCommon, position: 'inside' as const } },
+      { name: '儲能', depth: 1, itemStyle: { color: PALETTE.storage }, label: { ...labelCommon, position: 'inside' as const } },
+      { name: '用電端', depth: 2, itemStyle: { color: PALETTE.contract }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
+      { name: '用電端轉移量', depth: 2, itemStyle: { color: PALETTE.contract }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
+      { name: '成功匹配量', depth: 3, itemStyle: { color: PALETTE.success }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
+      { name: '儲能存入量', depth: 3, itemStyle: { color: PALETTE.storage }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
+      { name: '餘電', depth: 3, itemStyle: { color: PALETTE.surplus }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
     ];
 
     const links = [
@@ -171,7 +158,7 @@ export default function SettlementEnergyFlowSankey({
         },
       ],
     };
-  }, [aggregate, enlarge, palette]);
+  }, [aggregate, enlarge]);
 
   const chartEvents = {
     click: (params: unknown) => {
@@ -183,7 +170,7 @@ export default function SettlementEnergyFlowSankey({
   return (
     <section
       className={embedded ? 'mt-6' : 'rounded-2xl border border-slate-300 p-5 shadow-sm'}
-      style={embedded ? undefined : { backgroundColor: palette.background, color: palette.text }}
+      style={embedded ? undefined : { backgroundColor: PALETTE.background, color: PALETTE.text }}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -200,26 +187,6 @@ export default function SettlementEnergyFlowSankey({
         >
           {enlarge ? '縮小圖表' : '放大圖表'}
         </button>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPaletteMode('A')}
-            className={`rounded-full border px-3 py-1 text-xs font-bold ${
-              paletteMode === 'A' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
-            }`}
-          >
-            配色A
-          </button>
-          <button
-            type="button"
-            onClick={() => setPaletteMode('B')}
-            className={`rounded-full border px-3 py-1 text-xs font-bold ${
-              paletteMode === 'B' ? 'border-slate-700 bg-slate-700 text-white' : 'border-slate-300 bg-white text-slate-700'
-            }`}
-          >
-            配色B
-          </button>
-        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-700">

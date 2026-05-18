@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useRegistration } from '@/contexts/RegistrationContext';
+import DataSourceBar from '@/components/DataSourceBar';
 import { cn } from '@/lib/utils';
 
 const LIGHT_CHART_TEXT = '#64748b';
@@ -413,6 +414,8 @@ export default function MonthlyCheckingPage() {
           </Button>
         </div>
       </div>
+
+      <DataSourceBar onApplyFullRange={() => setMonth(new Date().toISOString().slice(0, 7))} />
 
       <Alert className={`${PANEL_CARD_CLASS} py-4`}>
         <AlertTitle>檢核主軸（你描述的灰電失效規則）</AlertTitle>

@@ -774,101 +774,124 @@ export default function SettlementPreSettlementPage({
   return (
     <div className="space-y-6 pb-8 text-slate-800">
       {pageHeading.startsWith('4.1') ? (
-        <section className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-white p-5 shadow-sm">
-          <h3 className="text-base font-bold text-slate-900">RE 年度目標與累計達成率</h3>
-          <p className="mt-1 text-xs font-semibold text-slate-600">
-            自訂統計區間後，以區間內累計成功匹配量與累計用電量計算 RE；年度目標可自行輸入（%）作為對照。
-          </p>
-          <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                <p className="text-[11px] font-bold text-slate-500">RE 年度目標</p>
-                <p className="mt-1 text-2xl font-black tabular-nums text-indigo-800">{reAnnualTargetPct.toFixed(1)}%</p>
+        <section className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">RE 年度目標與累計達成率</h3>
+              <p className="mt-0.5 max-w-2xl text-xs font-semibold text-slate-600">
+                先設定統計區間與年度目標，下方指標依區間內累計匹配量與用電量即時計算。
+              </p>
+            </div>
+            {reDataDateSpan.start && reDataDateSpan.end ? (
+              <span className="rounded-full border border-indigo-200 bg-white/90 px-2.5 py-1 text-[10px] font-bold text-indigo-800">
+                資料可用 {reDataDateSpan.start}～{reDataDateSpan.end}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-3 rounded-xl border border-slate-200/90 bg-white/95 p-3 shadow-sm">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">區間與目標設定</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
+              <div className="lg:col-span-3">
+                <label className="mb-1 block text-[10px] font-bold text-slate-600">起日</label>
+                <input
+                  type="date"
+                  value={reCumStart || reDataDateSpan.start}
+                  min={reDataDateSpan.start || undefined}
+                  max={reDataDateSpan.end || undefined}
+                  onChange={(e) => setReCumStart(e.target.value)}
+                  className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
+                />
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                <p className="text-[11px] font-bold text-slate-500">累計成功匹配量（kWh）</p>
-                <p className="mt-1 text-xl font-black tabular-nums text-slate-900">{cumulativeReForRange.sumMatched.toFixed(1)}</p>
-                <p className="mt-0.5 text-[10px] font-semibold text-slate-500">區間內 {cumulativeReForRange.dayCount} 日加總</p>
+              <div className="lg:col-span-3">
+                <label className="mb-1 block text-[10px] font-bold text-slate-600">迄日</label>
+                <input
+                  type="date"
+                  value={reCumEnd || reDataDateSpan.end}
+                  min={reDataDateSpan.start || undefined}
+                  max={reDataDateSpan.end || undefined}
+                  onChange={(e) => setReCumEnd(e.target.value)}
+                  className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
+                />
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-                <p className="text-[11px] font-bold text-slate-500">累計用電量（kWh）</p>
-                <p className="mt-1 text-xl font-black tabular-nums text-slate-900">{cumulativeReForRange.sumLoad.toFixed(1)}</p>
-                <p className="mt-0.5 text-[10px] font-semibold text-slate-500">區間內 {cumulativeReForRange.dayCount} 日加總</p>
+              <div className="lg:col-span-2">
+                <label className="mb-1 block text-[10px] font-bold text-slate-600">RE 年度目標（%）</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={reAnnualTargetPct}
+                  onChange={(e) => setReAnnualTargetPct(Number(e.target.value))}
+                  className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
+                />
               </div>
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-3 shadow-sm">
-                <p className="text-[11px] font-bold text-emerald-900">
-                  <span className="cursor-help border-b border-dotted border-emerald-700" title={reAchievementTooltip}>
-                    RE 累計達成率
-                  </span>
+              <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-4 lg:justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReCumStart(reDataDateSpan.start);
+                    setReCumEnd(reDataDateSpan.end);
+                  }}
+                  className="h-9 flex-1 rounded-md border border-slate-300 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 sm:flex-none"
+                >
+                  帶入資料全日區間
+                </button>
+              </div>
+            </div>
+            <p className="mt-2 text-[10px] font-semibold text-slate-500">
+              目前統計：{reRangeStart || '—'}～{reRangeEnd || '—'}
+              {cumulativeReForRange.dayCount > 0 ? ` · ${cumulativeReForRange.dayCount} 日` : ''}
+            </p>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-12">
+            <div className="col-span-2 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm lg:col-span-5">
+              <p className="text-[11px] font-bold text-emerald-900">
+                <span className="cursor-help border-b border-dotted border-emerald-700" title={reAchievementTooltip}>
+                  RE 累計達成率
+                </span>
+              </p>
+              <div className="mt-1 flex flex-wrap items-end justify-between gap-2">
+                <p className="text-3xl font-black tabular-nums leading-none text-emerald-800">
+                  {cumulativeReForRange.rePct.toFixed(2)}%
                 </p>
-                <p className="mt-1 text-2xl font-black tabular-nums text-emerald-800">{cumulativeReForRange.rePct.toFixed(2)}%</p>
-                <p className={`mt-1 text-xs font-bold ${reVsTargetDiff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  與年度目標差 {reVsTargetDiff >= 0 ? '+' : ''}
+                <p className={`text-xs font-bold ${reVsTargetDiff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  與目標差 {reVsTargetDiff >= 0 ? '+' : ''}
                   {reVsTargetDiff.toFixed(2)}%
                 </p>
               </div>
-            </div>
-            <div className="w-full shrink-0 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm lg:w-[300px]">
-              <p className="mb-3 text-xs font-black text-slate-800">區間與目標設定</p>
-              <div className="space-y-3">
-            <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-600">起日</label>
-              <input
-                type="date"
-                value={reCumStart || reDataDateSpan.start}
-                min={reDataDateSpan.start || undefined}
-                max={reDataDateSpan.end || undefined}
-                onChange={(e) => setReCumStart(e.target.value)}
-                className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
-              />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold text-slate-600">迄日</label>
-              <input
-                type="date"
-                value={reCumEnd || reDataDateSpan.end}
-                min={reDataDateSpan.start || undefined}
-                max={reDataDateSpan.end || undefined}
-                onChange={(e) => setReCumEnd(e.target.value)}
-                className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
-              />
-                </div>
-                <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-600">RE 年度目標（%）</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step={0.1}
-                value={reAnnualTargetPct}
-                onChange={(e) => setReAnnualTargetPct(Number(e.target.value))}
-                className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setReCumStart(reDataDateSpan.start);
-                setReCumEnd(reDataDateSpan.end);
-              }}
-              className="h-9 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100"
-            >
-              帶入資料全日區間
-            </button>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-emerald-100">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${Math.min(100, Math.max(0, cumulativeReForRange.rePct))}%` }}
+                />
               </div>
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-              <span className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                資料來源：AMI(量測)
-              </span>
-              <span className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">
-                資料來源：M表(量測)
-              </span>
-              <span className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                資料來源：計畫量
-              </span>
-              </div>
+              <p className="mt-1 text-[10px] font-semibold text-slate-500">目標線 {reAnnualTargetPct.toFixed(1)}%</p>
+            </div>
+
+            <div className="rounded-xl border border-indigo-200 bg-white px-3 py-2.5 shadow-sm lg:col-span-2">
+              <p className="text-[11px] font-bold text-slate-500">RE 年度目標</p>
+              <p className="mt-0.5 text-2xl font-black tabular-nums text-indigo-800">{reAnnualTargetPct.toFixed(1)}%</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm lg:col-span-2">
+              <p className="text-[11px] font-bold text-slate-500">累計成功匹配量</p>
+              <p className="mt-0.5 text-xl font-black tabular-nums text-slate-900">
+                {cumulativeReForRange.sumMatched.toFixed(1)}
+              </p>
+              <p className="text-[10px] font-semibold text-slate-500">kWh</p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm lg:col-span-3">
+              <p className="text-[11px] font-bold text-slate-500">累計用電量</p>
+              <p className="mt-0.5 text-xl font-black tabular-nums text-slate-900">
+                {cumulativeReForRange.sumLoad.toFixed(1)}
+              </p>
+              <p className="text-[10px] font-semibold text-slate-500">kWh · 區間 {cumulativeReForRange.dayCount} 日</p>
             </div>
           </div>
+
           <SettlementEnergyFlowSankey drill={energyFlowDrill} aggregate={energyFlowAggregate} embedded />
         </section>
       ) : null}
