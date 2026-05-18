@@ -12,6 +12,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import SettlementEnergyFlowSankey, {
+  type EnergyFlowAggregate,
+  type EnergyFlowDrill,
+} from '@/components/SettlementEnergyFlowSankey';
 
 type HourRow = {
   hour: number;
@@ -104,50 +108,6 @@ function expandHourlyToQuarterRows(rows: HourRow[], dateLabel: string): QuarterR
     }
   }
   return out;
-}
-
-function buildSeriesChartOption(title: string, rows: HourRow[], planKey: keyof HourRow, actualKey: keyof HourRow, unit: string): EChartsOption {
-  return {
-    animation: false,
-    title: { text: title, left: 8, top: 4, textStyle: { fontSize: 13, fontWeight: 700, color: '#0f172a' } },
-    grid: { top: 34, right: 18, bottom: 46, left: 52, containLabel: true },
-    tooltip: { trigger: 'axis' },
-    legend: { top: 8, right: 10, textStyle: { fontSize: 11, color: '#0f172a', fontWeight: 700 } },
-    xAxis: {
-      type: 'category',
-      data: rows.map((r) => `${String(r.hour).padStart(2, '0')}:00`),
-      axisLabel: { fontSize: 10, interval: 3, color: '#0f172a', fontWeight: 600 },
-      axisLine: { lineStyle: { color: '#334155', width: 1.3 } },
-    },
-    yAxis: {
-      type: 'value',
-      name: unit,
-      nameTextStyle: { color: '#0f172a', fontWeight: 700 },
-      axisLabel: { fontSize: 10, color: '#0f172a', fontWeight: 600 },
-      axisLine: { show: true, lineStyle: { color: '#334155', width: 1.3 } },
-      splitLine: { lineStyle: { color: '#94a3b8', width: 1, opacity: 0.65 } },
-    },
-    series: [
-      {
-        name: '規劃量',
-        type: 'line',
-        smooth: true,
-        symbol: 'none',
-        lineStyle: { type: 'dashed', width: 2, color: '#334155' },
-        itemStyle: { color: '#334155' },
-        data: rows.map((r) => Number(r[planKey])),
-      },
-      {
-        name: '即時量測',
-        type: 'line',
-        smooth: true,
-        symbol: 'none',
-        lineStyle: { width: 2.4, color: '#2563eb' },
-        itemStyle: { color: '#2563eb' },
-        data: rows.map((r) => Number(r[actualKey])),
-      },
-    ],
-  };
 }
 
 type SankeyStyleMode = 'ab' | 'c';
@@ -243,6 +203,28 @@ function aggregateSankeyMonth(
   };
 }
 
+function sumSankeyDetailRows(rows: SankeyDetailDayRow[]): Omit<EnergyFlowAggregate, 'periodLabel' | 'dayCount'> {
+  const sums = rows.reduce(
+    (acc, r) => ({
+      generation: acc.generation + r.generation,
+      load: acc.load + r.load,
+      storageIn: acc.storageIn + r.storageIn,
+      storageOut: acc.storageOut + r.storageOut,
+      contractMatched: acc.contractMatched + r.contractMatched,
+      totalMatched: acc.totalMatched + r.totalMatched,
+    }),
+    { generation: 0, load: 0, storageIn: 0, storageOut: 0, contractMatched: 0, totalMatched: 0 }
+  );
+  return {
+    generation: Number(sums.generation.toFixed(1)),
+    load: Number(sums.load.toFixed(1)),
+    storageIn: Number(sums.storageIn.toFixed(1)),
+    storageOut: Number(sums.storageOut.toFixed(1)),
+    contractMatched: Number(sums.contractMatched.toFixed(1)),
+    totalMatched: Number(sums.totalMatched.toFixed(1)),
+  };
+}
+
 export default function SettlementPreSettlementPage({
   pageHeading = '4.1 預結算 - 桑基匹配圖',
   defaultStyleMode = 'ab',
@@ -258,20 +240,6 @@ export default function SettlementPreSettlementPage({
 
   const quarterRows = useMemo(() => expandHourlyToQuarterRows(hourlyRows, chartDateLabel), [hourlyRows, chartDateLabel]);
 
-  const allocationQuarterRows = useMemo(
-    () =>
-      quarterRows.map((row) => {
-        const allocated = Math.min(row.generationActual + Math.max(row.storageActual, 0), row.loadPlan);
-        const transferred = Math.max(0, Math.min(allocated, row.loadActual));
-        return {
-          timeLabel: row.timeLabel,
-          allocated: Number(allocated.toFixed(3)),
-          transferred: Number(transferred.toFixed(3)),
-          diff: Number((transferred - row.loadActual).toFixed(3)),
-        };
-      }),
-    [quarterRows]
-  );
 
   const preSettlementReMetrics = useMemo(() => {
     let totalLoadPlan = 0;
@@ -411,6 +379,44 @@ export default function SettlementPreSettlementPage({
       .sort((a, b) => b.dateLabel.localeCompare(a.dateLabel));
   }, [sankeyDetailRows, sankeyExplorerMonth, sankeyExplorerView, sankeyExplorerYear]);
 
+  const energyFlowDrill: EnergyFlowDrill = useMemo(() => {
+    if (sankeyExplorerView === 'quarter') return 'day';
+    if (sankeyExplorerView === 'daily') return 'month';
+    return 'year';
+  }, [sankeyExplorerView]);
+
+  const energyFlowAggregate = useMemo((): EnergyFlowAggregate => {
+    let rows: SankeyDetailDayRow[] = [];
+    let periodLabel = `${sankeyExplorerYear} 年`;
+
+    if (sankeyExplorerView === 'quarter' && sankeyExplorerDay) {
+      const dayRow = (sankeyDetailRows as SankeyDetailDayRow[]).find((r) => r.dateLabel === sankeyExplorerDay);
+      rows = dayRow ? [dayRow] : [];
+      periodLabel = sankeyExplorerDay;
+    } else if (sankeyExplorerView === 'daily' && sankeyExplorerMonth != null) {
+      rows = sankeyDailyRowsForExplorer;
+      periodLabel = `${sankeyExplorerYear} 年 ${MONTH_NAMES_TW[sankeyExplorerMonth - 1]}`;
+    } else {
+      rows = (sankeyDetailRows as SankeyDetailDayRow[]).filter((r) =>
+        r.dateLabel.startsWith(`${sankeyExplorerYear}-`)
+      );
+    }
+
+    const sums = sumSankeyDetailRows(rows);
+    return {
+      ...sums,
+      dayCount: rows.length,
+      periodLabel,
+    };
+  }, [
+    sankeyDailyRowsForExplorer,
+    sankeyDetailRows,
+    sankeyExplorerDay,
+    sankeyExplorerMonth,
+    sankeyExplorerView,
+    sankeyExplorerYear,
+  ]);
+
   const explorerQuarterRows = useMemo(() => {
     if (!sankeyExplorerDay) return [];
     const hourly = buildHourlyRowsByDate(sankeyExplorerDay);
@@ -462,7 +468,6 @@ export default function SettlementPreSettlementPage({
   const [cExpanded, setCExpanded] = useState(false);
   const [enlargeSankey, setEnlargeSankey] = useState(false);
   const [showSankeyTable, setShowSankeyTable] = useState(false);
-  const [showAllocationTable, setShowAllocationTable] = useState(false);
   const [showStorageTable, setShowStorageTable] = useState(false);
   const [notedDays, setNotedDays] = useState<Record<string, boolean>>({});
   const [slotOverrides, setSlotOverrides] = useState<
@@ -766,19 +771,6 @@ export default function SettlementPreSettlementPage({
     [sankeyModel]
   );
 
-  const genChartOption = useMemo(
-    () => buildSeriesChartOption('發電量：規劃 vs 即時', hourlyRows, 'generationPlan', 'generationActual', 'kWh'),
-    [hourlyRows]
-  );
-  const loadChartOption = useMemo(
-    () => buildSeriesChartOption('用電量：規劃 vs 即時', hourlyRows, 'loadPlan', 'loadActual', 'kWh'),
-    [hourlyRows]
-  );
-  const storageChartOption = useMemo(
-    () => buildSeriesChartOption('儲能量：規劃 vs 即時', hourlyRows, 'storagePlan', 'storageActual', 'kWh'),
-    [hourlyRows]
-  );
-
   return (
     <div className="space-y-6 pb-8 text-slate-800">
       {pageHeading.startsWith('4.1') ? (
@@ -787,7 +779,38 @@ export default function SettlementPreSettlementPage({
           <p className="mt-1 text-xs font-semibold text-slate-600">
             自訂統計區間後，以區間內累計成功匹配量與累計用電量計算 RE；年度目標可自行輸入（%）作為對照。
           </p>
-          <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white/90 p-3">
+          <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-500">RE 年度目標</p>
+                <p className="mt-1 text-2xl font-black tabular-nums text-indigo-800">{reAnnualTargetPct.toFixed(1)}%</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-500">累計成功匹配量（kWh）</p>
+                <p className="mt-1 text-xl font-black tabular-nums text-slate-900">{cumulativeReForRange.sumMatched.toFixed(1)}</p>
+                <p className="mt-0.5 text-[10px] font-semibold text-slate-500">區間內 {cumulativeReForRange.dayCount} 日加總</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-500">累計用電量（kWh）</p>
+                <p className="mt-1 text-xl font-black tabular-nums text-slate-900">{cumulativeReForRange.sumLoad.toFixed(1)}</p>
+                <p className="mt-0.5 text-[10px] font-semibold text-slate-500">區間內 {cumulativeReForRange.dayCount} 日加總</p>
+              </div>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-3 shadow-sm">
+                <p className="text-[11px] font-bold text-emerald-900">
+                  <span className="cursor-help border-b border-dotted border-emerald-700" title={reAchievementTooltip}>
+                    RE 累計達成率
+                  </span>
+                </p>
+                <p className="mt-1 text-2xl font-black tabular-nums text-emerald-800">{cumulativeReForRange.rePct.toFixed(2)}%</p>
+                <p className={`mt-1 text-xs font-bold ${reVsTargetDiff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  與年度目標差 {reVsTargetDiff >= 0 ? '+' : ''}
+                  {reVsTargetDiff.toFixed(2)}%
+                </p>
+              </div>
+            </div>
+            <div className="w-full shrink-0 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm lg:w-[300px]">
+              <p className="mb-3 text-xs font-black text-slate-800">區間與目標設定</p>
+              <div className="space-y-3">
             <div>
               <label className="mb-1 block text-[10px] font-bold text-slate-600">起日</label>
               <input
@@ -796,21 +819,21 @@ export default function SettlementPreSettlementPage({
                 min={reDataDateSpan.start || undefined}
                 max={reDataDateSpan.end || undefined}
                 onChange={(e) => setReCumStart(e.target.value)}
-                className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
+                className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
               />
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-600">迄日</label>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold text-slate-600">迄日</label>
               <input
                 type="date"
                 value={reCumEnd || reDataDateSpan.end}
                 min={reDataDateSpan.start || undefined}
                 max={reDataDateSpan.end || undefined}
                 onChange={(e) => setReCumEnd(e.target.value)}
-                className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
+                className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800"
               />
-            </div>
-            <div className="min-w-[7rem]">
+                </div>
+                <div>
               <label className="mb-1 block text-[10px] font-bold text-slate-600">RE 年度目標（%）</label>
               <input
                 type="number"
@@ -828,11 +851,12 @@ export default function SettlementPreSettlementPage({
                 setReCumStart(reDataDateSpan.start);
                 setReCumEnd(reDataDateSpan.end);
               }}
-              className="h-9 rounded-md border border-slate-300 bg-slate-50 px-3 text-xs font-bold text-slate-700"
+              className="h-9 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100"
             >
               帶入資料全日區間
             </button>
-            <div className="mt-3 flex w-full flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
               <span className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                 資料來源：AMI(量測)
               </span>
@@ -842,39 +866,10 @@ export default function SettlementPreSettlementPage({
               <span className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                 資料來源：計畫量
               </span>
+              </div>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-              <p className="text-[11px] font-bold text-slate-500">RE 年度目標</p>
-              <p className="mt-1 text-2xl font-black tabular-nums text-indigo-800">{reAnnualTargetPct.toFixed(1)}%</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-              <p className="text-[11px] font-bold text-slate-500">累計成功匹配量（kWh）</p>
-              <p className="mt-1 text-xl font-black tabular-nums text-slate-900">{cumulativeReForRange.sumMatched.toFixed(1)}</p>
-              <p className="mt-0.5 text-[10px] font-semibold text-slate-500">區間內 {cumulativeReForRange.dayCount} 日加總</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">
-              <p className="text-[11px] font-bold text-slate-500">累計用電量（kWh）</p>
-              <p className="mt-1 text-xl font-black tabular-nums text-slate-900">{cumulativeReForRange.sumLoad.toFixed(1)}</p>
-              <p className="mt-0.5 text-[10px] font-semibold text-slate-500">區間內 {cumulativeReForRange.dayCount} 日加總</p>
-            </div>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 px-3 py-3 shadow-sm">
-              <p className="text-[11px] font-bold text-emerald-900">
-                <span
-                  className="cursor-help border-b border-dotted border-emerald-700"
-                  title={reAchievementTooltip}
-                >
-                  RE 累計達成率
-                </span>
-              </p>
-              <p className="mt-1 text-2xl font-black tabular-nums text-emerald-800">{cumulativeReForRange.rePct.toFixed(2)}%</p>
-              <p className={`mt-1 text-xs font-bold ${reVsTargetDiff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                與年度目標差 {reVsTargetDiff >= 0 ? '+' : ''}
-                {reVsTargetDiff.toFixed(2)}%
-              </p>
-            </div>
-          </div>
+          <SettlementEnergyFlowSankey drill={energyFlowDrill} aggregate={energyFlowAggregate} embedded />
         </section>
       ) : null}
 
@@ -1521,144 +1516,6 @@ export default function SettlementPreSettlementPage({
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-bold text-slate-900">預結算分配量 / 轉移成功量</h3>
-        <p className="mt-1 text-xs font-semibold text-slate-600">
-          下列明細以當日示範資料為準，時間粒度為每 15 分鐘一筆（00:00、00:15…共 96 筆）；與上方三圖同日、同套假資料邏輯。
-        </p>
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="h-[260px] rounded-xl border border-slate-200 bg-slate-50 p-2"><ReactECharts option={genChartOption} style={{ height: '100%' }} /></div>
-          <div className="h-[260px] rounded-xl border border-slate-200 bg-slate-50 p-2"><ReactECharts option={loadChartOption} style={{ height: '100%' }} /></div>
-          <div className="h-[260px] rounded-xl border border-slate-200 bg-slate-50 p-2"><ReactECharts option={storageChartOption} style={{ height: '100%' }} /></div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowAllocationTable((v) => !v)}
-          className="mt-4 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-800"
-        >
-          {showAllocationTable ? '收合詳細表格' : '展開詳細表格'}
-        </button>
-        {showAllocationTable && (
-          <div className="mt-4 space-y-6">
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <p className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-800">預結算分配／轉移（15 分鐘）</p>
-              <div className="max-h-[360px] overflow-y-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-bold">時間</th>
-                      <th className="px-3 py-2 text-right font-bold">預結算分配量(kWh)</th>
-                      <th className="px-3 py-2 text-right font-bold">轉移成功量(kWh)</th>
-                      <th className="px-3 py-2 text-right font-bold">與用電即時差異(kWh)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-slate-900">
-                    {allocationQuarterRows.map((r) => (
-                      <tr key={`alloc-q-${r.timeLabel}`} className="border-t border-slate-200">
-                        <td className="px-3 py-1.5 font-mono text-xs font-semibold">{r.timeLabel}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{r.allocated.toFixed(3)}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums">{r.transferred.toFixed(3)}</td>
-                        <td className={`px-3 py-1.5 text-right tabular-nums ${r.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{r.diff.toFixed(3)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-              <div className="overflow-x-auto rounded-xl border border-amber-200 bg-amber-50/30">
-                <p className="border-b border-amber-200 bg-amber-100/60 px-3 py-2 text-xs font-black text-amber-950">發電量（15 分鐘）— 規劃／即時／誤差</p>
-                <div className="max-h-[280px] overflow-y-auto bg-white">
-                  <table className="min-w-full text-sm">
-                    <thead className="sticky top-0 z-[1] bg-amber-50 text-slate-900">
-                      <tr>
-                        <th className="px-2 py-1.5 text-left font-bold">時間</th>
-                        <th className="px-2 py-1.5 text-right font-bold">規劃量</th>
-                        <th className="px-2 py-1.5 text-right font-bold">即時量測</th>
-                        <th className="px-2 py-1.5 text-right font-bold">誤差量</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {quarterRows.map((r) => {
-                        const err = Number((r.generationActual - r.generationPlan).toFixed(3));
-                        return (
-                          <tr key={`g-q-${r.timeLabel}`} className="border-t border-slate-200">
-                            <td className="px-2 py-1 font-mono text-[11px]">{r.timeLabel}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{r.generationPlan.toFixed(3)}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{r.generationActual.toFixed(3)}</td>
-                            <td className={`px-2 py-1 text-right tabular-nums ${err === 0 ? 'text-slate-600' : err > 0 ? 'text-blue-700' : 'text-rose-700'}`}>{err.toFixed(3)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto rounded-xl border border-blue-200 bg-blue-50/30">
-                <p className="border-b border-blue-200 bg-blue-100/60 px-3 py-2 text-xs font-black text-blue-950">用電量（15 分鐘）— 規劃／即時／誤差</p>
-                <div className="max-h-[280px] overflow-y-auto bg-white">
-                  <table className="min-w-full text-sm">
-                    <thead className="sticky top-0 z-[1] bg-blue-50 text-slate-900">
-                      <tr>
-                        <th className="px-2 py-1.5 text-left font-bold">時間</th>
-                        <th className="px-2 py-1.5 text-right font-bold">規劃量</th>
-                        <th className="px-2 py-1.5 text-right font-bold">即時量測</th>
-                        <th className="px-2 py-1.5 text-right font-bold">誤差量</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {quarterRows.map((r) => {
-                        const err = Number((r.loadActual - r.loadPlan).toFixed(3));
-                        return (
-                          <tr key={`l-q-${r.timeLabel}`} className="border-t border-slate-200">
-                            <td className="px-2 py-1 font-mono text-[11px]">{r.timeLabel}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{r.loadPlan.toFixed(3)}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{r.loadActual.toFixed(3)}</td>
-                            <td className={`px-2 py-1 text-right tabular-nums ${err === 0 ? 'text-slate-600' : err > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{err.toFixed(3)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto rounded-xl border border-violet-200 bg-violet-50/30">
-                <p className="border-b border-violet-200 bg-violet-100/60 px-3 py-2 text-xs font-black text-violet-950">儲能量（15 分鐘）— 規劃／即時／誤差</p>
-                <div className="max-h-[280px] overflow-y-auto bg-white">
-                  <table className="min-w-full text-sm">
-                    <thead className="sticky top-0 z-[1] bg-violet-50 text-slate-900">
-                      <tr>
-                        <th className="px-2 py-1.5 text-left font-bold">時間</th>
-                        <th className="px-2 py-1.5 text-right font-bold">規劃量</th>
-                        <th className="px-2 py-1.5 text-right font-bold">即時量測</th>
-                        <th className="px-2 py-1.5 text-right font-bold">誤差量</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {quarterRows.map((r) => {
-                        const err = Number((r.storageActual - r.storagePlan).toFixed(3));
-                        return (
-                          <tr key={`s-q-${r.timeLabel}`} className="border-t border-slate-200">
-                            <td className="px-2 py-1 font-mono text-[11px]">{r.timeLabel}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{r.storagePlan.toFixed(3)}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{r.storageActual.toFixed(3)}</td>
-                            <td className={`px-2 py-1 text-right tabular-nums ${err === 0 ? 'text-slate-600' : err > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{err.toFixed(3)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-xs font-semibold text-slate-600">
-              誤差量定義為「即時量測 − 規劃量」（kWh）。儲能行含充／放電方向，與儲能圖同一欄位邏輯。
-            </p>
-          </div>
-        )}
-
         <section className="mt-6 rounded-2xl border border-slate-300 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
           <h4 className="text-base font-bold text-slate-900">實際發電與實際用電｜失衡累積與匹配率 RE</h4>
           <p className="mt-1 text-xs font-semibold text-slate-600">
