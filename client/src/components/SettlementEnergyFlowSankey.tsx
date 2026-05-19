@@ -2,7 +2,17 @@ import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import { useMemo, useState } from 'react';
 
+import {
+  SANKEY_CHART_NODES,
+  summarizeSankeyNodeFlows,
+  type SankeyChartLink,
+} from '@/lib/sankeyExplorerCsv';
+
 export type EnergyFlowDrill = 'year' | 'month' | 'day';
+
+export type SankeyClickPayload =
+  | { type: 'node'; name: string }
+  | { type: 'edge'; source: string; target: string };
 
 export type EnergyFlowAggregate = {
   generation: number;
@@ -28,7 +38,31 @@ const PALETTE = {
   background: '#f8fafc',
 } as const;
 
-function buildScaledLinks(a: EnergyFlowAggregate) {
+const NODE_COLORS: Record<string, string> = {
+  發電端: PALETTE.generation,
+  儲能餘額: PALETTE.battery,
+  合約數量: PALETTE.contract,
+  儲能: PALETTE.storage,
+  用電端: PALETTE.contract,
+  用電端轉移量: PALETTE.contract,
+  成功匹配量: PALETTE.success,
+  儲能存入量: PALETTE.storage,
+  餘電: PALETTE.surplus,
+};
+
+const NODE_DEPTH: Record<string, number> = {
+  發電端: 0,
+  儲能餘額: 0,
+  合約數量: 1,
+  儲能: 1,
+  用電端: 2,
+  用電端轉移量: 2,
+  成功匹配量: 3,
+  儲能存入量: 3,
+  餘電: 3,
+};
+
+function buildScaledLinks(a: EnergyFlowAggregate): SankeyChartLink[] {
   const k = Math.max(a.generation / TEMPLATE_GEN, 0.05);
   const genToContract = Number(Math.max(a.contractMatched * 1.02, 650 * k).toFixed(1));
   const genToStorage = Number(Math.max(a.storageIn, 230 * k).toFixed(1));
@@ -43,38 +77,54 @@ function buildScaledLinks(a: EnergyFlowAggregate) {
   const transferToSuccess = Number(Math.min(235 * k, a.totalMatched - loadToSuccess, storageToTransfer).toFixed(1));
   const transferToSurplus = Number(Math.max(15 * k, storageToTransfer - transferToSuccess).toFixed(1));
 
-  return {
-    genToContract,
-    genToStorage,
-    genToSurplus,
-    balanceToStorage,
-    contractToLoad,
-    contractToSurplus,
-    storageToTransfer,
-    storageToDeposit,
-    loadToSuccess,
-    loadToSurplus,
-    transferToSuccess,
-    transferToSurplus,
-  };
+  return [
+    { source: '發電端', target: '合約數量', value: genToContract },
+    { source: '發電端', target: '儲能', value: genToStorage },
+    { source: '發電端', target: '餘電', value: genToSurplus },
+    { source: '儲能餘額', target: '儲能', value: balanceToStorage },
+    { source: '合約數量', target: '用電端', value: contractToLoad },
+    { source: '合約數量', target: '餘電', value: contractToSurplus },
+    { source: '儲能', target: '用電端轉移量', value: storageToTransfer },
+    { source: '儲能', target: '儲能存入量', value: storageToDeposit },
+    { source: '用電端', target: '成功匹配量', value: loadToSuccess },
+    { source: '用電端', target: '餘電', value: loadToSurplus },
+    { source: '用電端轉移量', target: '成功匹配量', value: transferToSuccess },
+    { source: '用電端轉移量', target: '餘電', value: transferToSurplus },
+  ].filter((l) => l.value > 0.05);
 }
 
 type SettlementEnergyFlowSankeyProps = {
   drill: EnergyFlowDrill;
   aggregate: EnergyFlowAggregate;
+  flowLinks?: SankeyChartLink[];
   embedded?: boolean;
+  onSankeyInteraction?: (payload: SankeyClickPayload) => void;
 };
 
 export default function SettlementEnergyFlowSankey({
   drill,
   aggregate,
+  flowLinks,
   embedded = false,
+  onSankeyInteraction,
 }: SettlementEnergyFlowSankeyProps) {
   const [enlarge, setEnlarge] = useState(false);
   const [activeNode, setActiveNode] = useState<string | null>('發電端');
 
   const drillTitle =
     drill === 'year' ? '年度彙總' : drill === 'month' ? '月份彙總' : '單日彙總';
+
+  const resolvedLinks = useMemo(
+    () => (flowLinks && flowLinks.length > 0 ? flowLinks : buildScaledLinks(aggregate)),
+    [aggregate, flowLinks]
+  );
+
+  const usesCsv = flowLinks != null && flowLinks.length > 0;
+
+  const activeNodeSummary = useMemo(() => {
+    if (!activeNode) return null;
+    return summarizeSankeyNodeFlows(resolvedLinks, activeNode);
+  }, [activeNode, resolvedLinks]);
 
   const option = useMemo<EChartsOption>(() => {
     const edge = enlarge ? 52 : 44;
@@ -88,34 +138,30 @@ export default function SettlementEnergyFlowSankey({
       overflow: 'breakAll' as const,
     };
 
-    const f = buildScaledLinks(aggregate);
+    const usedNodes = new Set<string>();
+    for (const link of resolvedLinks) {
+      usedNodes.add(link.source);
+      usedNodes.add(link.target);
+    }
 
-    const nodes = [
-      { name: '發電端', depth: 0, itemStyle: { color: PALETTE.generation }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
-      { name: '儲能餘額', depth: 0, itemStyle: { color: PALETTE.battery }, label: { ...labelCommon, position: 'left' as const, distance: 8 } },
-      { name: '合約數量', depth: 1, itemStyle: { color: PALETTE.contract }, label: { ...labelCommon, position: 'inside' as const } },
-      { name: '儲能', depth: 1, itemStyle: { color: PALETTE.storage }, label: { ...labelCommon, position: 'inside' as const } },
-      { name: '用電端', depth: 2, itemStyle: { color: PALETTE.contract }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
-      { name: '用電端轉移量', depth: 2, itemStyle: { color: PALETTE.contract }, label: { ...labelCommon, position: 'right' as const, distance: 10 } },
-      { name: '成功匹配量', depth: 3, itemStyle: { color: PALETTE.success }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
-      { name: '儲能存入量', depth: 3, itemStyle: { color: PALETTE.storage }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
-      { name: '餘電', depth: 3, itemStyle: { color: PALETTE.surplus }, label: { ...labelCommon, position: 'right' as const, distance: 12 } },
-    ];
+    const nodes = SANKEY_CHART_NODES.filter((name) => usedNodes.has(name)).map((name) => {
+      const depth = NODE_DEPTH[name] ?? 0;
+      const labelPosition =
+        depth === 0 ? ('left' as const) : depth === 3 ? ('right' as const) : ('inside' as const);
+      const labelDistance = depth === 0 ? 8 : depth === 3 ? 12 : 6;
+      return {
+        name,
+        depth,
+        itemStyle: { color: NODE_COLORS[name] ?? PALETTE.contract },
+        label: { ...labelCommon, position: labelPosition, distance: labelDistance },
+      };
+    });
 
-    const links = [
-      { source: '發電端', target: '合約數量', value: f.genToContract },
-      { source: '發電端', target: '儲能', value: f.genToStorage },
-      { source: '發電端', target: '餘電', value: f.genToSurplus },
-      { source: '儲能餘額', target: '儲能', value: f.balanceToStorage },
-      { source: '合約數量', target: '用電端', value: f.contractToLoad },
-      { source: '合約數量', target: '餘電', value: f.contractToSurplus },
-      { source: '儲能', target: '用電端轉移量', value: f.storageToTransfer },
-      { source: '儲能', target: '儲能存入量', value: f.storageToDeposit },
-      { source: '用電端', target: '成功匹配量', value: f.loadToSuccess },
-      { source: '用電端', target: '餘電', value: f.loadToSurplus },
-      { source: '用電端轉移量', target: '成功匹配量', value: f.transferToSuccess },
-      { source: '用電端轉移量', target: '餘電', value: f.transferToSurplus },
-    ].filter((l) => l.value > 0.05);
+    const links = resolvedLinks.map((l) => ({
+      source: l.source,
+      target: l.target,
+      value: l.value,
+    }));
 
     return {
       animation: false,
@@ -132,9 +178,11 @@ export default function SettlementEnergyFlowSankey({
             const source = item.data?.source ?? '';
             const target = item.data?.target ?? '';
             const value = item.data?.value ?? item.value ?? 0;
-            return `${source} → ${target}<br/>流量：${value}`;
+            return `${source} → ${target}<br/>流量：${Number(value).toFixed(3)} kWh`;
           }
-          return `${item.name ?? ''}<br/>流量：${item.value ?? 0}`;
+          const nodeName = item.name ?? '';
+          const { inFlow, outFlow } = summarizeSankeyNodeFlows(resolvedLinks, nodeName);
+          return `${nodeName}<br/>流入：${inFlow.toFixed(3)} kWh<br/>流出：${outFlow.toFixed(3)} kWh`;
         },
       },
       series: [
@@ -158,12 +206,21 @@ export default function SettlementEnergyFlowSankey({
         },
       ],
     };
-  }, [aggregate, enlarge]);
+  }, [enlarge, resolvedLinks]);
 
   const chartEvents = {
     click: (params: unknown) => {
-      const node = params as { dataType?: string; name?: string };
-      if (node.dataType === 'node' && node.name) setActiveNode(node.name);
+      const item = params as {
+        dataType?: string;
+        name?: string;
+        data?: { source?: string; target?: string };
+      };
+      if (item.dataType === 'node' && item.name) {
+        setActiveNode(item.name);
+        onSankeyInteraction?.({ type: 'node', name: item.name });
+      } else if (item.dataType === 'edge' && item.data?.source && item.data?.target) {
+        onSankeyInteraction?.({ type: 'edge', source: item.data.source, target: item.data.target });
+      }
     },
   };
 
@@ -177,7 +234,11 @@ export default function SettlementEnergyFlowSankey({
           <h3 className="text-lg font-bold text-slate-900">4.2 月結算｜能源流動總覽（桑基）</h3>
           <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-600">
             依下方明細表下鑽層級自動切換：<strong>{drillTitle}</strong>（{aggregate.periodLabel}，共{' '}
-            {aggregate.dayCount} 日）。數值由示範資料加總後依月結算節點比例換算，圖表可拖曳縮放。
+            {aggregate.dayCount} 日）。
+            {usesCsv
+              ? '節點與連線流量直接來自 CSV 流向加總，與表格同層級。'
+              : '數值由示範資料加總後依比例換算。'}
+            圖表可拖曳縮放。
           </p>
         </div>
         <button
@@ -210,17 +271,21 @@ export default function SettlementEnergyFlowSankey({
       </div>
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-xs font-bold text-slate-600">可點擊節點檢視摘要（目前層級：{drillTitle}）</p>
-        {activeNode ? (
+        <p className="text-xs font-bold text-slate-600">
+          可點擊節點或連線開啟明細視窗（目前層級：{drillTitle}）
+        </p>
+        {activeNode && activeNodeSummary ? (
           <div className="mt-2 grid gap-2 text-sm font-semibold text-slate-800 sm:grid-cols-2">
             <p>
               節點：<span className="text-indigo-800">{activeNode}</span>
             </p>
             <p>
+              流入 {activeNodeSummary.inFlow.toFixed(3)} kWh／流出 {activeNodeSummary.outFlow.toFixed(3)} kWh
+            </p>
+            <p>
               區間加總：發電 {aggregate.generation.toFixed(1)} kWh／用電 {aggregate.load.toFixed(1)} kWh
             </p>
-            <p>合約匹配 {aggregate.contractMatched.toFixed(1)} kWh</p>
-            <p>總匹配 {aggregate.totalMatched.toFixed(1)} kWh（{aggregate.dayCount} 日）</p>
+            <p>合約匹配 {aggregate.contractMatched.toFixed(1)} kWh · 總匹配 {aggregate.totalMatched.toFixed(1)} kWh</p>
           </div>
         ) : (
           <p className="mt-2 text-sm text-slate-600">請點選圖上節點。</p>

@@ -1,0 +1,11 @@
+asset_id,asset_type,resource_type,site_name,capacity_kw
+G1,generation,太陽能,甲案 PV-A,520
+G2,generation,太陽能,乙案 PV-B,480
+G3,generation,風力,離岸風場 A,600
+G4,generation,水力,小水力 C,350
+G5,generation,生質能,生質機組 D,280
+L1,load,工業負載,科學園區 A,900
+L2,load,工業負載,加工區 B,750
+L3,load,商業負載,商辦 C,620
+L4,load,公共負載,校園 D,480
+L5,load,住宅負載,社區 E,400
