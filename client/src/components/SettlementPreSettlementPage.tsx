@@ -258,11 +258,6 @@ export default function SettlementPreSettlementPage({
     if (!el) return;
     el.scrollTop = 0;
     el.scrollLeft = 0;
-    if (sankeyExplorerView === 'quarter' && sankeyExplorerDay) {
-      requestAnimationFrame(() => {
-        document.getElementById('sankey-explorer-table')?.scrollIntoView({ block: 'start', behavior: 'auto' });
-      });
-    }
   }, [sankeyExplorerView, sankeyExplorerDay, sankeyExplorerMonth, sankeyExplorerYear]);
   const [selectedSankeyDate, setSelectedSankeyDate] = useState(() => new Date().toISOString().slice(0, 10));
 
@@ -1045,55 +1040,8 @@ export default function SettlementPreSettlementPage({
                 ))}
               </div>
             </div>
-            {(sankeyExplorerView === 'year' || sankeyExplorerView === 'daily') && (
-              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                <span className="whitespace-nowrap">排序</span>
-                <select
-                  value={sankeyExplorerSort}
-                  onChange={(e) => setSankeyExplorerSort(e.target.value as SankeyExplorerSort)}
-                  className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800"
-                >
-                  <option value="desc">日期 新→舊</option>
-                  <option value="asc">日期 舊→新</option>
-                </select>
-              </label>
-            )}
-          </div>
-          <div
-            id="sankey-explorer-table"
-            className="flex min-h-0 w-full flex-col overflow-hidden rounded-lg border border-slate-200"
-          >
-            {sankeyExplorerView === 'daily' && sankeyExplorerMonth != null ? (
-              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-2 py-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSankeyExplorerView('year');
-                    setSankeyExplorerMonth(null);
-                    setSankeyExplorerDay(null);
-                  }}
-                  className={SANKEY_BACK_BTN}
-                >
-                  ← 返回年度
-                </button>
-                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                  <span className="whitespace-nowrap">排序</span>
-                  <select
-                    value={sankeyExplorerSort}
-                    onChange={(e) => setSankeyExplorerSort(e.target.value as SankeyExplorerSort)}
-                    className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800"
-                  >
-                    <option value="desc">日期 新→舊</option>
-                    <option value="asc">日期 舊→新</option>
-                  </select>
-                </label>
-                <span className="text-xs font-bold text-slate-600">
-                  {sankeyExplorerYear} 年 {MONTH_NAMES_TW[sankeyExplorerMonth - 1]} · 日明細
-                </span>
-              </div>
-            ) : null}
-            {sankeyExplorerView === 'quarter' && sankeyExplorerDay ? (
-              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-2 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {sankeyExplorerView === 'quarter' ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -1104,6 +1052,8 @@ export default function SettlementPreSettlementPage({
                 >
                   ← 返回每日
                 </button>
+              ) : null}
+              {sankeyExplorerView === 'daily' || sankeyExplorerView === 'quarter' ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -1115,9 +1065,29 @@ export default function SettlementPreSettlementPage({
                 >
                   ← 返回年度
                 </button>
+              ) : null}
+              {sankeyExplorerView === 'year' || sankeyExplorerView === 'daily' ? (
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                  <span className="whitespace-nowrap">排序</span>
+                  <select
+                    value={sankeyExplorerSort}
+                    onChange={(e) => setSankeyExplorerSort(e.target.value as SankeyExplorerSort)}
+                    className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800"
+                  >
+                    <option value="desc">日期 新→舊</option>
+                    <option value="asc">日期 舊→新</option>
+                  </select>
+                </label>
+              ) : null}
+              {sankeyExplorerView === 'quarter' && sankeyExplorerDay ? (
                 <span className="text-xs font-bold text-slate-600">15 分鐘 · {sankeyExplorerDay}</span>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
+          </div>
+          <div
+            id="sankey-explorer-table"
+            className="flex min-h-0 w-full flex-col overflow-hidden rounded-lg border border-slate-200"
+          >
             <div
               ref={sankeyExplorerScrollRef}
               className={
