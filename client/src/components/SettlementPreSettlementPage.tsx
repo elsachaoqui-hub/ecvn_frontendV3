@@ -1,5 +1,4 @@
 import type { EChartsOption } from 'echarts';
-import ReactECharts from 'echarts-for-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -460,14 +459,12 @@ export default function SettlementPreSettlementPage({
     [quarterRows]
   );
 
-  const [styleMode, setStyleMode] = useState<SankeyStyleMode>(defaultStyleMode);
-  const [granularity, setGranularity] = useState<SankeyGranularity>('summary4h');
+  const [styleMode] = useState<SankeyStyleMode>(defaultStyleMode);
+  const [granularity] = useState<SankeyGranularity>('summary4h');
   const [sankeyFlowView, setSankeyFlowView] = useState<SankeyFlowView>('main');
-  const [showGeneratorMeterId, setShowGeneratorMeterId] = useState(true);
-  const [showLoadMeterId, setShowLoadMeterId] = useState(true);
-  const [cExpanded, setCExpanded] = useState(false);
-  const [enlargeSankey, setEnlargeSankey] = useState(false);
-  const [showSankeyTable, setShowSankeyTable] = useState(false);
+  const [showGeneratorMeterId] = useState(true);
+  const [showLoadMeterId] = useState(true);
+  const [cExpanded] = useState(false);
   const [showStorageTable, setShowStorageTable] = useState(false);
   const [notedDays, setNotedDays] = useState<Record<string, boolean>>({});
   const [slotOverrides, setSlotOverrides] = useState<
@@ -1378,163 +1375,6 @@ export default function SettlementPreSettlementPage({
             </DialogContent>
           </Dialog>
         </div>
-
-        <div id="sankey-mode-anchor" className="mb-4 flex scroll-mt-4 flex-wrap items-center gap-2">
-          <span className="text-xs font-black text-slate-700">桑基呈現模式：</span>
-          <button
-            type="button"
-            onClick={() => setStyleMode('ab')}
-            className={`rounded-full px-3 py-1 text-xs font-bold ${styleMode === 'ab' ? 'bg-blue-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-          >
-            樣式A+B（推薦）
-          </button>
-          <button
-            type="button"
-            onClick={() => setStyleMode('c')}
-            className={`rounded-full px-3 py-1 text-xs font-bold ${styleMode === 'c' ? 'bg-indigo-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-          >
-            樣式C（互動展開）
-          </button>
-          {styleMode === 'ab' && (
-            <>
-              <button
-                type="button"
-                onClick={() => setGranularity('summary4h')}
-                className={`rounded-full px-3 py-1 text-xs font-bold ${granularity === 'summary4h' ? 'bg-slate-800 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-              >
-                摘要（每4小時）
-              </button>
-              <button
-                type="button"
-                onClick={() => setGranularity('detail24h')}
-                className={`rounded-full px-3 py-1 text-xs font-bold ${granularity === 'detail24h' ? 'bg-slate-800 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-              >
-                詳細（24時段）
-              </button>
-            </>
-          )}
-          {styleMode === 'c' && (
-            <span className="text-xs font-semibold text-slate-700">
-              先看摘要，點「儲能調節帳戶」可切換 24 時段展開。
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => setEnlargeSankey((v) => !v)}
-            className="ml-auto rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700"
-          >
-            {enlargeSankey ? '縮小圖表' : '放大圖表'}
-          </button>
-        </div>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setSankeyFlowView('main')}
-            className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyFlowView === 'main' ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-          >
-            總匹配視角
-          </button>
-          <button
-            type="button"
-            onClick={() => setSankeyFlowView('charge')}
-            className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyFlowView === 'charge' ? 'bg-indigo-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-          >
-            儲能存入（10:00-14:00）
-          </button>
-          <button
-            type="button"
-            onClick={() => setSankeyFlowView('discharge')}
-            className={`rounded-full px-3 py-1 text-xs font-bold ${sankeyFlowView === 'discharge' ? 'bg-violet-700 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-          >
-            儲能提領（16:00-20:00）
-          </button>
-        </div>
-        <div className="mb-3 flex flex-wrap items-center gap-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-800">
-            <input
-              type="checkbox"
-              checked={showGeneratorMeterId}
-              onChange={(e) => setShowGeneratorMeterId(e.target.checked)}
-            />
-            顯示發電電號
-          </label>
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-800">
-            <input
-              type="checkbox"
-              checked={showLoadMeterId}
-              onChange={(e) => setShowLoadMeterId(e.target.checked)}
-            />
-            顯示用電電號
-          </label>
-        </div>
-        <p className="mt-1 text-xs font-semibold text-slate-800">以單日加總量，呈現發電端 → ECVN合約與調節帳戶 → 合約用戶/儲能時段/儲能餘額/餘電。</p>
-        <p id="sankey-date-anchor" className="mt-2 text-center text-sm font-bold text-slate-900">{sankeyDisplayDateText}</p>
-        <div id="sankey-match-chart" className={`mt-4 ${enlargeSankey ? 'h-[560px]' : 'h-[360px]'} rounded-xl border border-slate-200 bg-slate-50 p-2`}>
-          <ReactECharts
-            option={sankeyOption}
-            style={{ height: '100%', width: '100%' }}
-            onEvents={{
-              click: (params: { name?: string; dataType?: string; data?: { name?: string } }) => {
-                const nodeName = params.dataType === 'node' ? (params.data?.name ?? params.name) : params.data?.name ?? params.name;
-                if (styleMode === 'c' && nodeName === 'ECVN合約與調節帳戶｜儲能調節帳戶') {
-                  setCExpanded((v) => !v);
-                }
-              },
-            }}
-          />
-        </div>
-        <p className="mt-2 text-xs font-semibold text-slate-800">
-          合約履行只流向「合約用戶（匹配成功）」；24 時段節點為「儲能時段價值」，由「儲能調節帳戶」流入。
-        </p>
-        <button
-          type="button"
-          onClick={() => setShowSankeyTable((v) => !v)}
-          className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-800"
-        >
-          {showSankeyTable ? '收合詳細表格' : '展開詳細表格'}
-        </button>
-        {showSankeyTable && <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-100 text-slate-900">
-              <tr>
-                <th className="px-3 py-2 text-left font-bold">中間帳戶</th>
-                <th className="px-3 py-2 text-right font-bold">加總量(kWh)</th>
-                <th className="px-3 py-2 text-left font-bold">說明</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-900">
-              <tr className="border-t border-slate-200">
-                <td className="px-3 py-2">合約履行</td>
-                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalContract.toFixed(1)}</td>
-                <td className="px-3 py-2">對應右側第一筆「合約用戶（匹配成功）」</td>
-              </tr>
-              <tr className="border-t border-slate-200">
-                <td className="px-3 py-2">儲能調節帳戶</td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  <button
-                    type="button"
-                    className="font-semibold text-indigo-700 underline-offset-2 hover:underline"
-                    onClick={() => setSankeyFlowView('charge')}
-                  >
-                    {sankeyModel.summary.totalStorageFlow.toFixed(1)}
-                  </button>
-                </td>
-                <td className="px-3 py-2">流向 24 時段用戶端與儲能餘額</td>
-              </tr>
-              <tr className="border-t border-slate-200">
-                <td className="px-3 py-2">前一天儲能餘額</td>
-                <td className="px-3 py-2 text-right tabular-nums">{previousDayStorageBalance.toFixed(1)}</td>
-                <td className="px-3 py-2">左下來源，直接流入「儲能調節帳戶」供 16:00-20:00 提領使用</td>
-              </tr>
-              <tr className="border-t border-slate-200">
-                <td className="px-3 py-2">未履約餘電</td>
-                <td className="px-3 py-2 text-right tabular-nums">{sankeyModel.summary.totalUnfulfilled.toFixed(1)}</td>
-                <td className="px-3 py-2">流向右側最後一筆「餘電」</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>}
-
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
