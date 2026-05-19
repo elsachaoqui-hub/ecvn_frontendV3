@@ -143,6 +143,15 @@ type SankeyExplorerSort = 'desc' | 'asc';
 const SANKEY_BACK_BTN =
   'rounded-md border border-indigo-600 bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:bg-indigo-700';
 
+const SANKEY_DETAIL_BTN =
+  'rounded-md border border-blue-600 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-100';
+
+const SANKEY_VENDOR_BTN =
+  'rounded-md border border-emerald-600 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-800 shadow-sm hover:bg-emerald-100';
+
+const SANKEY_VENDOR_CONFIRMED_BTN =
+  'rounded-md border border-slate-300 bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 shadow-sm hover:bg-slate-200';
+
 function sortSankeyExplorerMonths<T extends { month: number }>(rows: T[], order: SankeyExplorerSort): T[] {
   return [...rows].sort((a, b) => (order === 'desc' ? b.month - a.month : a.month - b.month));
 }
@@ -1403,42 +1412,42 @@ export default function SettlementPreSettlementPage({
                           <td className="px-3 py-2 text-right tabular-nums font-semibold">{line.runBalance.toFixed(3)}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-blue-700">{line.contractMatched.toFixed(3)}</td>
                           <td className="px-3 py-2 text-right font-semibold text-blue-700">{line.totalMatched.toFixed(3)}</td>
-                          <td className="px-3 py-2 text-center whitespace-nowrap">
-                            <button
-                              type="button"
-                              className="mr-1 text-[11px] font-bold text-blue-700 underline"
-                              onClick={() =>
-                                setEditTarget({
-                                  slotKey: sk,
-                                  timeLabel: line.row.timeLabel,
-                                  generationOriginal: gen0,
-                                  loadOriginal: load0,
-                                  storageOriginal: storage0,
-                                  draftGeneration: String(gen),
-                                  draftLoad: String(load),
-                                  draftStorage: String(line.row.storageActual),
-                                  reason: ovr.reason ?? '',
-                                })
-                              }
-                            >
-                              編輯
-                            </button>
-                            <button
-                              type="button"
-                              className={
-                                slotVendorOk[sk]
-                                  ? 'text-[11px] font-bold text-slate-500 underline decoration-slate-400 hover:text-slate-700'
-                                  : 'text-[11px] font-bold text-emerald-800 underline hover:text-emerald-900'
-                              }
-                              onClick={() =>
-                                setSlotVendorOk((p) => ({
-                                  ...p,
-                                  [sk]: !p[sk],
-                                }))
-                              }
-                            >
-                              {slotVendorOk[sk] ? '已確認' : '廠商確認'}
-                            </button>
+                          <td className="px-3 py-2 text-center">
+                            <div className="flex flex-wrap items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                className={SANKEY_DETAIL_BTN}
+                                onClick={() =>
+                                  setEditTarget({
+                                    slotKey: sk,
+                                    timeLabel: line.row.timeLabel,
+                                    generationOriginal: gen0,
+                                    loadOriginal: load0,
+                                    storageOriginal: storage0,
+                                    draftGeneration: String(gen),
+                                    draftLoad: String(load),
+                                    draftStorage: String(line.row.storageActual),
+                                    reason: ovr.reason ?? '',
+                                  })
+                                }
+                              >
+                                編輯
+                              </button>
+                              <button
+                                type="button"
+                                className={
+                                  slotVendorOk[sk] ? SANKEY_VENDOR_CONFIRMED_BTN : SANKEY_VENDOR_BTN
+                                }
+                                onClick={() =>
+                                  setSlotVendorOk((p) => ({
+                                    ...p,
+                                    [sk]: !p[sk],
+                                  }))
+                                }
+                              >
+                                {slotVendorOk[sk] ? '已確認' : '廠商確認'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
