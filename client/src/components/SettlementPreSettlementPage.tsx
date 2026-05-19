@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -519,6 +519,36 @@ export default function SettlementPreSettlementPage({
     reason: string;
   } | null>(null);
   const [saveToast, setSaveToast] = useState(false);
+
+  const commitSlotEdit = useCallback(() => {
+    if (!editTarget) return;
+    const reason = editTarget.reason.trim();
+    if (!reason) {
+      window.alert('請寫原因');
+      return;
+    }
+    const generationActual = Number(editTarget.draftGeneration);
+    const loadActual = Number(editTarget.draftLoad);
+    const storageActual = Number(editTarget.draftStorage);
+    if (
+      !Number.isFinite(generationActual) ||
+      !Number.isFinite(loadActual) ||
+      !Number.isFinite(storageActual)
+    ) {
+      return;
+    }
+    setSlotOverrides((prev) => ({
+      ...prev,
+      [editTarget.slotKey]: {
+        generationActual,
+        loadActual,
+        storageActual,
+        reason,
+      },
+    }));
+    setEditTarget(null);
+    setSaveToast(true);
+  }, [editTarget]);
 
   const explorerQuarterDisplayResolved = useMemo(() => {
     if (explorerQuarterDisplay.length === 0 || !sankeyExplorerDay) return explorerQuarterDisplay;
@@ -1432,12 +1462,18 @@ export default function SettlementPreSettlementPage({
                 <DialogTitle className="text-slate-900">修改 15 分鐘量測值</DialogTitle>
                 <DialogDescription className="text-slate-600">
                   {editTarget
-                    ? `時段 ${editTarget.timeLabel}：可一次調整發電、用電與儲能量測，並填寫一筆修改原因。`
+                    ? `時段 ${editTarget.timeLabel}：可一次調整發電、用電與儲能量測，並填寫一筆修改原因（必填）。在數值欄按 Enter、或在原因欄按 Enter 皆可完成送出。`
                     : ''}
                 </DialogDescription>
               </DialogHeader>
               {editTarget ? (
-                <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                <form
+                  className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    commitSlotEdit();
+                  }}
+                >
                   <div>
                     <label className="text-xs font-bold text-slate-600">
                       發電端（量測，kWh）
@@ -1488,56 +1524,38 @@ export default function SettlementPreSettlementPage({
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600">修改原因（追溯用）</label>
+                    <label className="text-xs font-bold text-slate-600">
+                      修改原因（追溯用）<span className="text-rose-600">*</span>
+                    </label>
                     <textarea
+                      required
                       className="mt-1 min-h-[72px] w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900"
                       value={editTarget.reason}
                       onChange={(e) => setEditTarget((t) => (t ? { ...t, reason: e.target.value } : t))}
-                      placeholder="請說明本次調整原因…"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          commitSlotEdit();
+                        }
+                      }}
+                      placeholder="請說明本次調整原因…（Enter 送出、Shift+Enter 換行）"
                     />
                   </div>
-                </div>
+                  <DialogFooter className="gap-2 border-t border-slate-200 pt-3 sm:justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                      onClick={() => setEditTarget(null)}
+                    >
+                      取消
+                    </Button>
+                    <Button type="submit" className="bg-indigo-600 text-white hover:bg-indigo-700">
+                      完成
+                    </Button>
+                  </DialogFooter>
+                </form>
               ) : null}
-              <DialogFooter className="gap-2 border-t border-slate-100 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
-                  onClick={() => setEditTarget(null)}
-                >
-                  取消
-                </Button>
-                <Button
-                  type="button"
-                  className="bg-indigo-600 text-white hover:bg-indigo-700"
-                  onClick={() => {
-                    if (!editTarget) return;
-                    const generationActual = Number(editTarget.draftGeneration);
-                    const loadActual = Number(editTarget.draftLoad);
-                    const storageActual = Number(editTarget.draftStorage);
-                    if (
-                      !Number.isFinite(generationActual) ||
-                      !Number.isFinite(loadActual) ||
-                      !Number.isFinite(storageActual)
-                    ) {
-                      return;
-                    }
-                    setSlotOverrides((prev) => ({
-                      ...prev,
-                      [editTarget.slotKey]: {
-                        generationActual,
-                        loadActual,
-                        storageActual,
-                        reason: editTarget.reason.trim(),
-                      },
-                    }));
-                    setEditTarget(null);
-                    setSaveToast(true);
-                  }}
-                >
-                  完成
-                </Button>
-              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>

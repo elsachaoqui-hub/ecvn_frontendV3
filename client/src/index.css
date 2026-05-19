@@ -121,27 +121,27 @@
 ::-webkit-scrollbar-thumb { background: #342A1E; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #6B5C47; }
 
-/* 桑基／15 分鐘明細表：淺色可拖曳捲軸，thumb 高度隨內容比例變化 */
+/* 桑基／15 分鐘明細表：灰底軌道 + 黑色滑塊，thumb 高度隨內容比例變化 */
 .sankey-table-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #64748b #e2e8f0;
+  scrollbar-color: #000000 #d1d5db;
 }
 .sankey-table-scroll::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 .sankey-table-scroll::-webkit-scrollbar-track {
-  background: #e2e8f0;
+  background: #d1d5db;
   border-radius: 5px;
 }
 .sankey-table-scroll::-webkit-scrollbar-thumb {
-  background: #64748b;
+  background: #000000;
   border-radius: 5px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid #d1d5db;
   min-height: 40px;
 }
 .sankey-table-scroll::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #262626;
 }
 
 /* Step indicator styles */
