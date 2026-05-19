@@ -38,6 +38,10 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* 表單焦點／反白：與品牌色 --primary（琥珀）分開，避免輸入框選取呈棕色 */
+  --color-field-focus: var(--field-focus);
+  --color-selection-bg: var(--selection-bg);
+  --color-selection-fg: var(--selection-fg);
   --font-sans: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
 }
 
@@ -69,6 +73,10 @@
   --border: oklch(0.08 0.004 106.32);
   --input: oklch(0.08 0.004 106.32);
   --ring: oklch(0.454 0.245 82.881);
+  /* Windows 風格：輸入框焦點框與文字反白（見 ui/input.tsx、ui/textarea.tsx） */
+  --field-focus: #0078d4;
+  --selection-bg: #0078d4;
+  --selection-fg: #ffffff;
   --sidebar: oklch(0.792 0.042 85.755);
   --sidebar-foreground: oklch(0.071 0.013 75.508);
   --sidebar-accent: oklch(0.721 0.041 80.031);
@@ -80,6 +88,15 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  ::selection {
+    background-color: var(--selection-bg);
+    color: var(--selection-fg);
+  }
+  input::selection,
+  textarea::selection {
+    background-color: var(--selection-bg);
+    color: var(--selection-fg);
   }
   body {
     @apply bg-background text-foreground;
@@ -98,11 +115,34 @@
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar（全站預設；淺色業務表格請用 .sankey-table-scroll 覆寫） */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: #0E0A06; border-radius: 4px; }
 ::-webkit-scrollbar-thumb { background: #342A1E; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #6B5C47; }
+
+/* 桑基／15 分鐘明細表：淺色可拖曳捲軸，thumb 高度隨內容比例變化 */
+.sankey-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #64748b #e2e8f0;
+}
+.sankey-table-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.sankey-table-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 5px;
+}
+.sankey-table-scroll::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 5px;
+  border: 2px solid #e2e8f0;
+  min-height: 40px;
+}
+.sankey-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
 
 /* Step indicator styles */
 .step-active { border-color: #C47D09; color: #C47D09; }
