@@ -117,9 +117,9 @@
 
 /* Custom scrollbar（全站預設；淺色業務表格請用 .sankey-table-scroll 覆寫） */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #0E0A06; border-radius: 4px; }
-::-webkit-scrollbar-thumb { background: #342A1E; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #6B5C47; }
+::-webkit-scrollbar-track { background: #cfc7c0; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #342b20; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #6d5f4e; }
 
 /* 桑基／15 分鐘明細表：灰底軌道 + 黑色滑塊，thumb 高度隨內容比例變化 */
 .sankey-table-scroll {

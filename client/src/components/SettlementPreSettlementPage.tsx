@@ -1061,7 +1061,7 @@ export default function SettlementPreSettlementPage({
           </div>
           <div
             id="sankey-explorer-table"
-            className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200"
+            className="flex min-h-0 w-full flex-col overflow-hidden rounded-lg border border-slate-200"
           >
             {sankeyExplorerView === 'daily' && sankeyExplorerMonth != null ? (
               <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-2 py-2">
@@ -1120,7 +1120,11 @@ export default function SettlementPreSettlementPage({
             ) : null}
             <div
               ref={sankeyExplorerScrollRef}
-              className="min-h-0 max-h-[560px] overflow-x-auto overflow-y-auto overscroll-y-contain"
+              className={
+                sankeyExplorerView === 'quarter'
+                  ? 'sankey-table-scroll min-h-0 h-[min(520px,58vh)] w-full overflow-x-auto overflow-y-auto overscroll-y-contain'
+                  : 'sankey-table-scroll min-h-0 max-h-[560px] w-full overflow-x-auto overflow-y-auto overscroll-y-contain'
+              }
             >
             {sankeyExplorerView === 'year' ? (
               <table className="min-w-full text-sm">
@@ -1327,18 +1331,29 @@ export default function SettlementPreSettlementPage({
                 </table>
             ) : null}
             {sankeyExplorerView === 'quarter' && sankeyExplorerDay ? (
-                <table className="min-w-[1080px] text-xs">
+                <table className="w-full table-fixed border-collapse text-sm">
+                  <colgroup>
+                    <col className="w-[7%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[9%]" />
+                    <col className="w-[9%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[19%]" />
+                  </colgroup>
                   <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
                     <tr>
-                      <th className="px-2 py-2 text-left font-bold">時間</th>
-                      <th className="px-2 py-2 text-right font-bold">發電端(量測)</th>
-                      <th className="px-2 py-2 text-right font-bold">用電端(量測)</th>
-                      <th className="px-2 py-2 text-right font-bold">儲能(+)</th>
-                      <th className="px-2 py-2 text-right font-bold">儲能(-)</th>
-                      <th className="px-2 py-2 text-right font-bold">儲能餘額(∑)</th>
-                      <th className="px-2 py-2 text-right font-bold text-blue-700">合約匹配</th>
-                      <th className="px-2 py-2 text-right font-bold text-blue-700">總匹配</th>
-                      <th className="px-2 py-2 text-center font-bold">操作</th>
+                      <th className="px-3 py-2 text-left font-bold">時間</th>
+                      <th className="px-3 py-2 text-right font-bold">發電端(量測)</th>
+                      <th className="px-3 py-2 text-right font-bold">用電端(量測)</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能(+)</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能(-)</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能餘額(∑)</th>
+                      <th className="px-3 py-2 text-right font-bold text-blue-700">合約匹配</th>
+                      <th className="px-3 py-2 text-right font-bold text-blue-700">總匹配</th>
+                      <th className="px-3 py-2 text-center font-bold">操作</th>
                     </tr>
                   </thead>
                   <tbody className="text-slate-900">
@@ -1360,8 +1375,8 @@ export default function SettlementPreSettlementPage({
                       const storageEdited = ovr.storageActual != null && ovr.storageActual !== storage0;
                       return (
                         <tr key={sk} className="border-t border-slate-200">
-                          <td className="px-2 py-1.5 font-mono font-semibold">{line.row.timeLabel}</td>
-                          <td className={`px-2 py-1.5 text-right tabular-nums ${genCls}`}>
+                          <td className="px-3 py-2 font-mono font-semibold">{line.row.timeLabel}</td>
+                          <td className={`px-3 py-2 text-right tabular-nums ${genCls}`}>
                             {genEdited ? (
                               <>
                                 <span className="text-slate-900 line-through">{gen0.toFixed(3)}</span>{' '}
@@ -1371,7 +1386,7 @@ export default function SettlementPreSettlementPage({
                               gen0.toFixed(3)
                             )}
                           </td>
-                          <td className={`px-2 py-1.5 text-right tabular-nums ${loadCls}`}>
+                          <td className={`px-3 py-2 text-right tabular-nums ${loadCls}`}>
                             {loadEdited ? (
                               <>
                                 <span className="text-slate-900 line-through">{load0.toFixed(3)}</span>{' '}
@@ -1405,10 +1420,10 @@ export default function SettlementPreSettlementPage({
                               line.stOut.toFixed(3)
                             )}
                           </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums font-semibold">{line.runBalance.toFixed(3)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-semibold">{line.runBalance.toFixed(3)}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-blue-700">{line.contractMatched.toFixed(3)}</td>
-                          <td className="px-2 py-1.5 text-right font-semibold text-blue-700">{line.totalMatched.toFixed(3)}</td>
-                          <td className="px-2 py-1.5 text-center whitespace-nowrap">
+                          <td className="px-3 py-2 text-right font-semibold text-blue-700">{line.totalMatched.toFixed(3)}</td>
+                          <td className="px-3 py-2 text-center whitespace-nowrap">
                             <button
                               type="button"
                               className="mr-1 text-[11px] font-bold text-blue-700 underline"
