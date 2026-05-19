@@ -1023,8 +1023,18 @@ export default function SettlementPreSettlementPage({
                     disabled={!selectable}
                     onClick={() => {
                       if (!selectable) return;
+                      if (
+                        sankeyExplorerMonth === month &&
+                        (sankeyExplorerView === 'daily' || sankeyExplorerView === 'quarter')
+                      ) {
+                        setSankeyExplorerView('year');
+                        setSankeyExplorerMonth(null);
+                        setSankeyExplorerDay(null);
+                        return;
+                      }
                       setSankeyExplorerMonth(month);
                       setSankeyExplorerView('daily');
+                      setSankeyExplorerDay(null);
                       setSelectedSankeyDate(ymd(sankeyExplorerYear, month, 1));
                     }}
                     className={`rounded-full px-2.5 py-1 text-xs font-bold ${
