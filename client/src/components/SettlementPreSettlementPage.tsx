@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -138,6 +138,21 @@ const MONTH_NAMES_TW = [
   '十二月',
 ] as const;
 
+type SankeyExplorerSort = 'desc' | 'asc';
+
+const SANKEY_BACK_BTN =
+  'rounded-md border border-indigo-600 bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:bg-indigo-700';
+
+function sortSankeyExplorerMonths<T extends { month: number }>(rows: T[], order: SankeyExplorerSort): T[] {
+  return [...rows].sort((a, b) => (order === 'desc' ? b.month - a.month : a.month - b.month));
+}
+
+function sortSankeyExplorerDates<T extends { dateLabel: string }>(rows: T[], order: SankeyExplorerSort): T[] {
+  return [...rows].sort((a, b) =>
+    order === 'desc' ? b.dateLabel.localeCompare(a.dateLabel) : a.dateLabel.localeCompare(b.dateLabel)
+  );
+}
+
 type SankeyDetailDayRow = {
   dateLabel: string;
   generation: number;
@@ -235,6 +250,20 @@ export default function SettlementPreSettlementPage({
   const [sankeyExplorerView, setSankeyExplorerView] = useState<'year' | 'daily' | 'quarter'>('year');
   const [sankeyExplorerMonth, setSankeyExplorerMonth] = useState<number | null>(null);
   const [sankeyExplorerDay, setSankeyExplorerDay] = useState<string | null>(null);
+  const [sankeyExplorerSort, setSankeyExplorerSort] = useState<SankeyExplorerSort>('desc');
+  const sankeyExplorerScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = sankeyExplorerScrollRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+    el.scrollLeft = 0;
+    if (sankeyExplorerView === 'quarter' && sankeyExplorerDay) {
+      requestAnimationFrame(() => {
+        document.getElementById('sankey-explorer-table')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+      });
+    }
+  }, [sankeyExplorerView, sankeyExplorerDay, sankeyExplorerMonth, sankeyExplorerYear]);
   const [selectedSankeyDate, setSelectedSankeyDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const quarterRows = useMemo(() => expandHourlyToQuarterRows(hourlyRows, chartDateLabel), [hourlyRows, chartDateLabel]);
@@ -368,15 +397,19 @@ export default function SettlementPreSettlementPage({
     });
   }, [sankeyDetailRows, sankeyExplorerYear]);
 
+  const sankeyMonthlyRowsForYearSorted = useMemo(
+    () => sortSankeyExplorerMonths(sankeyMonthlyRowsForYear, sankeyExplorerSort),
+    [sankeyMonthlyRowsForYear, sankeyExplorerSort]
+  );
+
   const sankeyDailyRowsForExplorer = useMemo(() => {
     if (sankeyExplorerView !== 'daily' || sankeyExplorerMonth == null) return [];
-    return (sankeyDetailRows as SankeyDetailDayRow[])
-      .filter((r) => {
-        const [y, mm] = r.dateLabel.slice(0, 10).split('-').map(Number);
-        return y === sankeyExplorerYear && mm === sankeyExplorerMonth;
-      })
-      .sort((a, b) => b.dateLabel.localeCompare(a.dateLabel));
-  }, [sankeyDetailRows, sankeyExplorerMonth, sankeyExplorerView, sankeyExplorerYear]);
+    const filtered = (sankeyDetailRows as SankeyDetailDayRow[]).filter((r) => {
+      const [y, mm] = r.dateLabel.slice(0, 10).split('-').map(Number);
+      return y === sankeyExplorerYear && mm === sankeyExplorerMonth;
+    });
+    return sortSankeyExplorerDates(filtered, sankeyExplorerSort);
+  }, [sankeyDetailRows, sankeyExplorerMonth, sankeyExplorerSort, sankeyExplorerView, sankeyExplorerYear]);
 
   const energyFlowDrill: EnergyFlowDrill = useMemo(() => {
     if (sankeyExplorerView === 'quarter') return 'day';
@@ -468,19 +501,51 @@ export default function SettlementPreSettlementPage({
   const [showStorageTable, setShowStorageTable] = useState(false);
   const [notedDays, setNotedDays] = useState<Record<string, boolean>>({});
   const [slotOverrides, setSlotOverrides] = useState<
-    Record<string, { generationActual?: number; loadActual?: number; reason?: string }>
+    Record<
+      string,
+      { generationActual?: number; loadActual?: number; storageActual?: number; reason?: string }
+    >
   >({});
   const [slotVendorOk, setSlotVendorOk] = useState<Record<string, boolean>>({});
   const [editTarget, setEditTarget] = useState<{
     slotKey: string;
-    field: 'generationActual' | 'loadActual';
-    label: string;
-    original: number;
-    currentShown: number;
-    draft: string;
+    timeLabel: string;
+    generationOriginal: number;
+    loadOriginal: number;
+    storageOriginal: number;
+    draftGeneration: string;
+    draftLoad: string;
+    draftStorage: string;
     reason: string;
   } | null>(null);
   const [saveToast, setSaveToast] = useState(false);
+
+  const explorerQuarterDisplayResolved = useMemo(() => {
+    if (explorerQuarterDisplay.length === 0 || !sankeyExplorerDay) return explorerQuarterDisplay;
+    let run = explorerDayPrevBalance;
+    return explorerQuarterDisplay.map((line) => {
+      const sk = `${sankeyExplorerDay}@${line.row.slotIndex}`;
+      const ovr = slotOverrides[sk] ?? {};
+      const generationActual = ovr.generationActual ?? line.row.generationActual;
+      const loadActual = ovr.loadActual ?? line.row.loadActual;
+      const storageActual = ovr.storageActual ?? line.row.storageActual;
+      const stIn = Math.max(storageActual, 0);
+      const stOut = Math.max(-storageActual, 0);
+      run = Number((run + storageActual).toFixed(3));
+      const contractMatched = Number(Math.min(generationActual, loadActual * 0.35).toFixed(3));
+      const totalMatched = Number((contractMatched + stOut).toFixed(3));
+      return {
+        ...line,
+        row: { ...line.row, generationActual, loadActual, storageActual },
+        stIn,
+        stOut,
+        runBalance: run,
+        contractMatched,
+        totalMatched,
+      };
+    });
+  }, [explorerDayPrevBalance, explorerQuarterDisplay, sankeyExplorerDay, slotOverrides]);
+
   /** RE 年度目標（%）；累計區間起迄可自訂，預設帶入資料可用範圍 */
   const [reAnnualTargetPct, setReAnnualTargetPct] = useState(90);
   const [reCumStart, setReCumStart] = useState('');
@@ -774,7 +839,7 @@ export default function SettlementPreSettlementPage({
         <section className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h3 className="text-base font-bold text-slate-900">RE 年度目標與累計達成率</h3>
+              <h3 className="text-base font-bold text-slate-900">4.1 年度 RE 目標與累計達成率</h3>
               <p className="mt-0.5 max-w-2xl text-xs font-semibold text-slate-600">
                 先設定統計區間與年度目標，下方指標依區間內累計匹配量與用電量即時計算。
               </p>
@@ -950,13 +1015,88 @@ export default function SettlementPreSettlementPage({
                 ))}
               </div>
             </div>
+            {(sankeyExplorerView === 'year' || sankeyExplorerView === 'daily') && (
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                <span className="whitespace-nowrap">排序</span>
+                <select
+                  value={sankeyExplorerSort}
+                  onChange={(e) => setSankeyExplorerSort(e.target.value as SankeyExplorerSort)}
+                  className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800"
+                >
+                  <option value="desc">日期 新→舊</option>
+                  <option value="asc">日期 舊→新</option>
+                </select>
+              </label>
+            )}
           </div>
-          <div className="max-h-[620px] overflow-auto rounded-lg border border-slate-200">
+          <div
+            id="sankey-explorer-table"
+            className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200"
+          >
+            {sankeyExplorerView === 'daily' && sankeyExplorerMonth != null ? (
+              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-2 py-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSankeyExplorerView('year');
+                    setSankeyExplorerMonth(null);
+                    setSankeyExplorerDay(null);
+                  }}
+                  className={SANKEY_BACK_BTN}
+                >
+                  ← 返回年度
+                </button>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                  <span className="whitespace-nowrap">排序</span>
+                  <select
+                    value={sankeyExplorerSort}
+                    onChange={(e) => setSankeyExplorerSort(e.target.value as SankeyExplorerSort)}
+                    className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800"
+                  >
+                    <option value="desc">日期 新→舊</option>
+                    <option value="asc">日期 舊→新</option>
+                  </select>
+                </label>
+                <span className="text-xs font-bold text-slate-600">
+                  {sankeyExplorerYear} 年 {MONTH_NAMES_TW[sankeyExplorerMonth - 1]} · 日明細
+                </span>
+              </div>
+            ) : null}
+            {sankeyExplorerView === 'quarter' && sankeyExplorerDay ? (
+              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-2 py-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSankeyExplorerView('daily');
+                    setSankeyExplorerDay(null);
+                  }}
+                  className={SANKEY_BACK_BTN}
+                >
+                  ← 返回每日
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSankeyExplorerView('year');
+                    setSankeyExplorerMonth(null);
+                    setSankeyExplorerDay(null);
+                  }}
+                  className={SANKEY_BACK_BTN}
+                >
+                  ← 返回年度
+                </button>
+                <span className="text-xs font-bold text-slate-600">15 分鐘 · {sankeyExplorerDay}</span>
+              </div>
+            ) : null}
+            <div
+              ref={sankeyExplorerScrollRef}
+              className="min-h-0 max-h-[560px] overflow-x-auto overflow-y-auto overscroll-y-contain"
+            >
             {sankeyExplorerView === 'year' ? (
               <table className="min-w-full text-sm">
                 <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
                   <tr>
-                    <th className="px-3 py-2 text-left font-bold">時間</th>
+                    <th className="px-3 py-2 text-left font-bold">月份</th>
                     <th className="px-3 py-2 text-right font-bold">發電端</th>
                     <th className="px-3 py-2 text-right font-bold">用電端</th>
                     <th className="px-3 py-2 text-right font-bold">
@@ -998,7 +1138,7 @@ export default function SettlementPreSettlementPage({
                   </tr>
                 </thead>
                 <tbody className="text-slate-900">
-                  {sankeyMonthlyRowsForYear.map(({ month, label, selectable, row }) => {
+                  {sankeyMonthlyRowsForYearSorted.map(({ month, label, selectable, row }) => {
                     const z =
                       row ??
                       ({
@@ -1078,23 +1218,6 @@ export default function SettlementPreSettlementPage({
               </table>
             ) : null}
             {sankeyExplorerView === 'daily' && sankeyExplorerMonth != null ? (
-              <>
-                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-2 py-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSankeyExplorerView('year');
-                      setSankeyExplorerMonth(null);
-                      setSankeyExplorerDay(null);
-                    }}
-                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50"
-                  >
-                    返回年度
-                  </button>
-                  <span className="text-xs font-bold text-slate-600">
-                    {sankeyExplorerYear} 年 {MONTH_NAMES_TW[sankeyExplorerMonth - 1]} · 日明細
-                  </span>
-                </div>
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
                     <tr>
@@ -1172,34 +1295,8 @@ export default function SettlementPreSettlementPage({
                     )}
                   </tbody>
                 </table>
-              </>
             ) : null}
             {sankeyExplorerView === 'quarter' && sankeyExplorerDay ? (
-              <>
-                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-2 py-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSankeyExplorerView('daily');
-                      setSankeyExplorerDay(null);
-                    }}
-                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50"
-                  >
-                    返回每日
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSankeyExplorerView('year');
-                      setSankeyExplorerMonth(null);
-                      setSankeyExplorerDay(null);
-                    }}
-                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 hover:bg-slate-50"
-                  >
-                    返回年度
-                  </button>
-                  <span className="text-xs font-bold text-slate-600">15 分鐘 · {sankeyExplorerDay}</span>
-                </div>
                 <table className="min-w-[1080px] text-xs">
                   <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
                     <tr>
@@ -1215,19 +1312,22 @@ export default function SettlementPreSettlementPage({
                     </tr>
                   </thead>
                   <tbody className="text-slate-900">
-                    {explorerQuarterDisplay.map((line) => {
+                    {explorerQuarterDisplayResolved.map((line) => {
                       const sk = `${sankeyExplorerDay}@${line.row.slotIndex}`;
                       const ovr = slotOverrides[sk] ?? {};
-                      const gen0 = line.row.generationActual;
-                      const load0 = line.row.loadActual;
-                      const gen = ovr.generationActual ?? gen0;
-                      const load = ovr.loadActual ?? load0;
+                      const base = explorerQuarterDisplay.find((l) => l.row.slotIndex === line.row.slotIndex);
+                      const gen0 = base?.row.generationActual ?? line.row.generationActual;
+                      const load0 = base?.row.loadActual ?? line.row.loadActual;
+                      const storage0 = base?.row.storageActual ?? line.row.storageActual;
+                      const gen = line.row.generationActual;
+                      const load = line.row.loadActual;
                       const genAnom = Math.abs(gen - line.row.generationPlan) > Math.max(2, line.row.generationPlan * 0.08);
                       const loadAnom = Math.abs(load - line.row.loadPlan) > Math.max(2, line.row.loadPlan * 0.08);
                       const genCls = genAnom ? (slotVendorOk[sk] ? 'text-emerald-600' : 'text-rose-600') : '';
                       const loadCls = loadAnom ? (slotVendorOk[sk] ? 'text-emerald-600' : 'text-rose-600') : '';
                       const genEdited = ovr.generationActual != null && ovr.generationActual !== gen0;
                       const loadEdited = ovr.loadActual != null && ovr.loadActual !== load0;
+                      const storageEdited = ovr.storageActual != null && ovr.storageActual !== storage0;
                       return (
                         <tr key={sk} className="border-t border-slate-200">
                           <td className="px-2 py-1.5 font-mono font-semibold">{line.row.timeLabel}</td>
@@ -1251,8 +1351,30 @@ export default function SettlementPreSettlementPage({
                               load0.toFixed(3)
                             )}
                           </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{line.stIn.toFixed(3)}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{line.stOut.toFixed(3)}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {storageEdited ? (
+                              <>
+                                <span className="text-slate-900 line-through">
+                                  {Math.max(storage0, 0).toFixed(3)}
+                                </span>{' '}
+                                <span className="font-semibold text-emerald-600">({line.stIn.toFixed(3)})</span>
+                              </>
+                            ) : (
+                              line.stIn.toFixed(3)
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {storageEdited ? (
+                              <>
+                                <span className="text-slate-900 line-through">
+                                  {Math.max(-storage0, 0).toFixed(3)}
+                                </span>{' '}
+                                <span className="font-semibold text-emerald-600">({line.stOut.toFixed(3)})</span>
+                              </>
+                            ) : (
+                              line.stOut.toFixed(3)
+                            )}
+                          </td>
                           <td className="px-2 py-1.5 text-right tabular-nums font-semibold">{line.runBalance.toFixed(3)}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-blue-700">{line.contractMatched.toFixed(3)}</td>
                           <td className="px-2 py-1.5 text-right font-semibold text-blue-700">{line.totalMatched.toFixed(3)}</td>
@@ -1263,11 +1385,13 @@ export default function SettlementPreSettlementPage({
                               onClick={() =>
                                 setEditTarget({
                                   slotKey: sk,
-                                  field: 'generationActual',
-                                  label: '發電端（量測，kWh）',
-                                  original: gen0,
-                                  currentShown: gen,
-                                  draft: String(gen),
+                                  timeLabel: line.row.timeLabel,
+                                  generationOriginal: gen0,
+                                  loadOriginal: load0,
+                                  storageOriginal: storage0,
+                                  draftGeneration: String(gen),
+                                  draftLoad: String(load),
+                                  draftStorage: String(line.row.storageActual),
                                   reason: ovr.reason ?? '',
                                 })
                               }
@@ -1276,24 +1400,11 @@ export default function SettlementPreSettlementPage({
                             </button>
                             <button
                               type="button"
-                              className="mr-1 text-[11px] font-bold text-blue-700 underline"
-                              onClick={() =>
-                                setEditTarget({
-                                  slotKey: sk,
-                                  field: 'loadActual',
-                                  label: '用電端（量測，kWh）',
-                                  original: load0,
-                                  currentShown: load,
-                                  draft: String(load),
-                                  reason: ovr.reason ?? '',
-                                })
+                              className={
+                                slotVendorOk[sk]
+                                  ? 'text-[11px] font-bold text-slate-500 underline decoration-slate-400 hover:text-slate-700'
+                                  : 'text-[11px] font-bold text-emerald-800 underline hover:text-emerald-900'
                               }
-                            >
-                              用電
-                            </button>
-                            <button
-                              type="button"
-                              className="text-[11px] font-bold text-emerald-800 underline"
                               onClick={() =>
                                 setSlotVendorOk((p) => ({
                                   ...p,
@@ -1301,7 +1412,7 @@ export default function SettlementPreSettlementPage({
                                 }))
                               }
                             >
-                              {slotVendorOk[sk] ? '取消確認' : '廠商確認'}
+                              {slotVendorOk[sk] ? '已確認' : '廠商確認'}
                             </button>
                           </td>
                         </tr>
@@ -1309,60 +1420,115 @@ export default function SettlementPreSettlementPage({
                     })}
                   </tbody>
                 </table>
-              </>
             ) : null}
+            </div>
           </div>
           <p className="mt-2 text-xs font-semibold text-slate-700">
-            表格可捲動檢視。15 分鐘層級可編輯量測值並填寫原因；完成後顯示「修改成功」約 0.8 秒。異常數值以紅色標示，廠商確認後改為綠色。
+            表格可捲動檢視。15 分鐘層級僅【編輯】可一次調整發電、用電、儲能量測並填寫一筆原因；異常數值以紅色標示，點【廠商確認】後改為綠色並顯示灰色【已確認】，再點一次可還原。
           </p>
           <Dialog open={editTarget !== null} onOpenChange={(o) => !o && setEditTarget(null)}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="border-slate-200 bg-white text-slate-900 shadow-xl sm:max-w-md [&_[data-slot=dialog-close]]:text-slate-600">
               <DialogHeader>
-                <DialogTitle>修改數值</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-slate-900">修改 15 分鐘量測值</DialogTitle>
+                <DialogDescription className="text-slate-600">
                   {editTarget
-                    ? `欄位：${editTarget.label}；目前顯示：${editTarget.currentShown.toFixed(3)} kWh（原始 ${editTarget.original.toFixed(3)}）`
+                    ? `時段 ${editTarget.timeLabel}：可一次調整發電、用電與儲能量測，並填寫一筆修改原因。`
                     : ''}
                 </DialogDescription>
               </DialogHeader>
               {editTarget ? (
-                <div className="grid gap-3">
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
                   <div>
-                    <label className="text-xs font-bold text-slate-600">修改為（kWh）</label>
+                    <label className="text-xs font-bold text-slate-600">
+                      發電端（量測，kWh）
+                      <span className="ml-1 font-normal text-slate-500">
+                        原始 {editTarget.generationOriginal.toFixed(3)}
+                      </span>
+                    </label>
                     <Input
                       type="number"
                       step="0.001"
-                      value={editTarget.draft}
-                      onChange={(e) => setEditTarget((t) => (t ? { ...t, draft: e.target.value } : t))}
-                      className="mt-1 border-slate-300"
+                      value={editTarget.draftGeneration}
+                      onChange={(e) =>
+                        setEditTarget((t) => (t ? { ...t, draftGeneration: e.target.value } : t))
+                      }
+                      className="mt-1 border-slate-300 bg-white text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600">原因（追溯用）</label>
+                    <label className="text-xs font-bold text-slate-600">
+                      用電端（量測，kWh）
+                      <span className="ml-1 font-normal text-slate-500">
+                        原始 {editTarget.loadOriginal.toFixed(3)}
+                      </span>
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      value={editTarget.draftLoad}
+                      onChange={(e) => setEditTarget((t) => (t ? { ...t, draftLoad: e.target.value } : t))}
+                      className="mt-1 border-slate-300 bg-white text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600">
+                      儲能（量測，kWh；正值存入、負值提領）
+                      <span className="ml-1 font-normal text-slate-500">
+                        原始 {editTarget.storageOriginal.toFixed(3)}
+                      </span>
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      value={editTarget.draftStorage}
+                      onChange={(e) =>
+                        setEditTarget((t) => (t ? { ...t, draftStorage: e.target.value } : t))
+                      }
+                      className="mt-1 border-slate-300 bg-white text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-600">修改原因（追溯用）</label>
                     <textarea
                       className="mt-1 min-h-[72px] w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900"
                       value={editTarget.reason}
                       onChange={(e) => setEditTarget((t) => (t ? { ...t, reason: e.target.value } : t))}
+                      placeholder="請說明本次調整原因…"
                     />
                   </div>
                 </div>
               ) : null}
-              <DialogFooter className="gap-2">
-                <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>
+              <DialogFooter className="gap-2 border-t border-slate-100 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                  onClick={() => setEditTarget(null)}
+                >
                   取消
                 </Button>
                 <Button
                   type="button"
+                  className="bg-indigo-600 text-white hover:bg-indigo-700"
                   onClick={() => {
                     if (!editTarget) return;
-                    const v = Number(editTarget.draft);
-                    if (!Number.isFinite(v)) return;
+                    const generationActual = Number(editTarget.draftGeneration);
+                    const loadActual = Number(editTarget.draftLoad);
+                    const storageActual = Number(editTarget.draftStorage);
+                    if (
+                      !Number.isFinite(generationActual) ||
+                      !Number.isFinite(loadActual) ||
+                      !Number.isFinite(storageActual)
+                    ) {
+                      return;
+                    }
                     setSlotOverrides((prev) => ({
                       ...prev,
                       [editTarget.slotKey]: {
-                        ...prev[editTarget.slotKey],
-                        [editTarget.field]: v,
-                        reason: editTarget.reason,
+                        generationActual,
+                        loadActual,
+                        storageActual,
+                        reason: editTarget.reason.trim(),
                       },
                     }));
                     setEditTarget(null);
