@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
 
+import { useUiFont } from '@/contexts/UiFontContext';
 import { useRegistration } from '@/contexts/RegistrationContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -118,6 +119,7 @@ function buildDailyRows(seedKey: string, toleranceRate: number): HourCheckRow[] 
 }
 
 export default function DailyCheckingPage() {
+  const { chartFonts } = useUiFont();
   const { agents } = useRegistration();
 
   const [date, setDate] = useState(() => {
@@ -173,18 +175,18 @@ export default function DailyCheckingPage() {
         ...CHART_TOOLTIP,
         valueFormatter: (v: unknown) => (typeof v === 'number' ? `${v} kWh` : String(v)),
       },
-      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
+      legend: { top: 10, right: 10, textStyle: { fontSize: chartFonts.legend, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
       xAxis: {
         type: 'category',
         data: x,
-        axisLabel: { fontSize: 10, interval: 3, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLabel: { fontSize: chartFonts.axis, interval: 3, color: LIGHT_CHART_TEXT, fontWeight: 500 },
         axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
       },
       yAxis: {
         type: 'value',
         name: 'kWh',
         nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 },
-        axisLabel: { fontSize: 10, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLabel: { fontSize: chartFonts.axis, color: LIGHT_CHART_TEXT, fontWeight: 500 },
         axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
         splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } },
       },
@@ -216,7 +218,7 @@ export default function DailyCheckingPage() {
         },
       ],
     };
-  }, [rows]);
+  }, [rows, chartFonts]);
 
   const invalidTransferOption: EChartsOption = useMemo(() => {
     const x = rows.map((r) => `${String(r.hour).padStart(2, '0')}:00`);
@@ -235,14 +237,14 @@ export default function DailyCheckingPage() {
       xAxis: {
         type: 'category',
         data: x,
-        axisLabel: { fontSize: 10, interval: 3, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLabel: { fontSize: chartFonts.axis, interval: 3, color: LIGHT_CHART_TEXT, fontWeight: 500 },
         axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
       },
       yAxis: {
         type: 'value',
         name: 'kWh',
         nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 },
-        axisLabel: { fontSize: 10, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLabel: { fontSize: chartFonts.axis, color: LIGHT_CHART_TEXT, fontWeight: 500 },
         axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
         splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } },
       },
@@ -255,7 +257,7 @@ export default function DailyCheckingPage() {
         },
       ],
     };
-  }, [rows]);
+  }, [rows, chartFonts]);
 
   return (
     <div className="space-y-6">

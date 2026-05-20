@@ -68,6 +68,8 @@ export default function Header() {
             ? '5.1 預結算'
             : currentView === 'settlement-monthly'
               ? '5.2 月結算'
+              : currentView === 'web-settings'
+                ? '7.4 設定網頁'
           : registrationScreen === 'overview'
             ? '註冊申請總覽'
             : getStepTitle(step);

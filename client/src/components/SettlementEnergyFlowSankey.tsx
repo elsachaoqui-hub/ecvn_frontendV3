@@ -2,6 +2,7 @@ import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import { useMemo, useState } from 'react';
 
+import { useUiFont } from '@/contexts/UiFontContext';
 import {
   SANKEY_CHART_NODES,
   summarizeSankeyNodeFlows,
@@ -108,6 +109,7 @@ export default function SettlementEnergyFlowSankey({
   embedded = false,
   onSankeyInteraction,
 }: SettlementEnergyFlowSankeyProps) {
+  const { chartFonts } = useUiFont();
   const [enlarge, setEnlarge] = useState(false);
   const [activeNode, setActiveNode] = useState<string | null>('發電端');
 
@@ -130,7 +132,7 @@ export default function SettlementEnergyFlowSankey({
     const edge = enlarge ? 52 : 44;
     const labelCommon = {
       color: PALETTE.text,
-      fontSize: enlarge ? 11 : 9,
+      fontSize: enlarge ? chartFonts.sankeyNodeEnlarge : chartFonts.sankeyNode,
       fontWeight: 700,
       lineHeight: 15,
       width: enlarge ? 108 : 84,
@@ -206,7 +208,7 @@ export default function SettlementEnergyFlowSankey({
         },
       ],
     };
-  }, [enlarge, resolvedLinks]);
+  }, [chartFonts.sankeyNode, chartFonts.sankeyNodeEnlarge, enlarge, resolvedLinks]);
 
   const chartEvents = {
     click: (params: unknown) => {
@@ -231,7 +233,7 @@ export default function SettlementEnergyFlowSankey({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-bold text-slate-900">4.2 月結算｜能源流動總覽（桑基）</h3>
+          <h3 className="text-lg font-bold text-slate-900">5.2 結算｜能源流動總覽（桑基）</h3>
           <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-600">
             依下方明細表下鑽層級自動切換：<strong>{drillTitle}</strong>（{aggregate.periodLabel}，共{' '}
             {aggregate.dayCount} 日）。

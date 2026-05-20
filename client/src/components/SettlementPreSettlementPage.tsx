@@ -915,7 +915,7 @@ export default function SettlementPreSettlementPage({
         <section className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h3 className="text-base font-bold text-slate-900">4.1 年度 RE 目標與累計達成率</h3>
+              <h3 className="text-base font-bold text-slate-900">5.1 年度 RE 目標與累計達成率</h3>
               <p className="mt-0.5 max-w-2xl text-xs font-semibold text-slate-600">
                 先設定統計區間與年度目標，下方指標依區間內累計匹配量與用電量即時計算。
               </p>

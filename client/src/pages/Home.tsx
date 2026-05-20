@@ -14,6 +14,8 @@ import SettlementMonthlyPage from '@/components/SettlementMonthlyPage';
 import RegistrationOverview from '@/components/RegistrationOverview';
 import DailyCheckingPage from '@/components/DailyCheckingPage';
 import MonthlyCheckingPage from '@/components/MonthlyCheckingPage';
+import WebSettingsPage from '@/components/WebSettingsPage';
+import { UiFontProvider } from '@/contexts/UiFontContext';
 
 function MainContent() {
   const { step, currentView, registrationScreen } = useRegistration();
@@ -43,6 +45,7 @@ function MainContent() {
           {currentView === 'checking-monthly' && <MonthlyCheckingPage />}
           {currentView === 'settlement-pre' && <SettlementPreSettlementPage />}
           {currentView === 'settlement-monthly' && <SettlementMonthlyPage />}
+          {currentView === 'web-settings' && <WebSettingsPage />}
         </main>
       </div>
 
@@ -55,8 +58,10 @@ function MainContent() {
 
 export default function Home() {
   return (
-    <RegistrationProvider>
-      <MainContent />
-    </RegistrationProvider>
+    <UiFontProvider>
+      <RegistrationProvider>
+        <MainContent />
+      </RegistrationProvider>
+    </UiFontProvider>
   );
 }

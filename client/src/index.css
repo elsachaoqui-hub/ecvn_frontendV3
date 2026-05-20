@@ -43,9 +43,42 @@
   --color-selection-bg: var(--selection-bg);
   --color-selection-fg: var(--selection-fg);
   --font-sans: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+
+  /* Tailwind text-* 對應可調字級變數 */
+  --text-xs: var(--ui-font-12);
+  --text-xs--line-height: 1rem;
+  --text-sm: var(--ui-font-14);
+  --text-sm--line-height: 1.25rem;
+  --text-base: var(--ui-font-16);
+  --text-base--line-height: 1.5rem;
+  --text-lg: var(--ui-font-18);
+  --text-lg--line-height: 1.75rem;
+  --text-xl: var(--ui-font-20);
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: var(--ui-font-24);
+  --text-2xl--line-height: 2rem;
+  --text-3xl: var(--ui-font-30);
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl: var(--ui-font-36);
+  --text-4xl--line-height: 2.5rem;
+  --text-6xl: 3.75rem;
+  --text-6xl--line-height: 1;
 }
 
 :root {
+  /* 全站字級（px）— 可由 7.4 設定網頁調整，見 lib/uiFontScale.ts */
+  --ui-font-10: 10px;
+  --ui-font-11: 11px;
+  --ui-font-12: 12px;
+  --ui-font-13: 13px;
+  --ui-font-14: 14px;
+  --ui-font-16: 16px;
+  --ui-font-18: 18px;
+  --ui-font-20: 20px;
+  --ui-font-24: 24px;
+  --ui-font-30: 30px;
+  --ui-font-36: 36px;
+
   --primary: oklch(0.454 0.245 82.881);
   --primary-foreground: oklch(0.03 0.014 74.604);
   --sidebar-primary: oklch(0.454 0.245 82.881);
@@ -311,14 +344,14 @@
 }
 
 .resource-marker__title {
-  font-size: 13px;
+  font-size: var(--ui-font-13);
   font-weight: 800;
   line-height: 1.2;
 }
 
 .resource-marker__meta {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--ui-font-12);
   color: #cbd5e1;
 }
 
@@ -384,6 +417,14 @@
     transform: scale(1.8);
     opacity: 0;
   }
+}
+
+@utility text-ui-10 {
+  font-size: var(--ui-font-10);
+}
+
+@utility text-ui-11 {
+  font-size: var(--ui-font-11);
 }
 
 @layer components {

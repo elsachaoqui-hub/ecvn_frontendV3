@@ -15,6 +15,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useUiFont } from '@/contexts/UiFontContext';
 import { useRegistration } from '@/contexts/RegistrationContext';
 import DataSourceBar from '@/components/DataSourceBar';
 import { cn } from '@/lib/utils';
@@ -155,6 +156,7 @@ function buildMonthlyQuarterRows(seedKey: string, greyRuleMode: 'strict' | 'tole
 }
 
 export default function MonthlyCheckingPage() {
+  const { chartFonts } = useUiFont();
   const { agents } = useRegistration();
 
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -198,18 +200,18 @@ export default function MonthlyCheckingPage() {
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         textStyle: { color: '#4A4A4A' },
       },
-      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
+      legend: { top: 10, right: 10, textStyle: { fontSize: chartFonts.legend, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
       xAxis: {
         type: 'category',
         data: x,
-        axisLabel: { fontSize: 10, interval: 7, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLabel: { fontSize: chartFonts.axis, interval: 7, color: LIGHT_CHART_TEXT, fontWeight: 500 },
         axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
       },
       yAxis: {
         type: 'value',
         name: 'kWh',
         nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 },
-        axisLabel: { fontSize: 10, fontWeight: 500, color: LIGHT_CHART_TEXT },
+        axisLabel: { fontSize: chartFonts.axis, fontWeight: 500, color: LIGHT_CHART_TEXT },
         axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
         splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } },
       },
@@ -234,7 +236,7 @@ export default function MonthlyCheckingPage() {
         },
       ],
     };
-  }, [rows]);
+  }, [rows, chartFonts]);
 
   const surplusStorageOption: EChartsOption = useMemo(() => {
     const x = rows.map((r) => r.slot.slice(11)); // HH:MM
@@ -287,18 +289,18 @@ export default function MonthlyCheckingPage() {
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         textStyle: { color: '#4A4A4A' },
       },
-      legend: { top: 10, right: 10, textStyle: { fontSize: 11, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
+      legend: { top: 10, right: 10, textStyle: { fontSize: chartFonts.legend, color: LIGHT_CHART_TEXT, fontWeight: 600 } },
       xAxis: {
         type: 'category',
         data: x,
-        axisLabel: { fontSize: 10, interval: 7, color: LIGHT_CHART_TEXT, fontWeight: 500 },
+        axisLabel: { fontSize: chartFonts.axis, interval: 7, color: LIGHT_CHART_TEXT, fontWeight: 500 },
         axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
       },
       yAxis: {
         type: 'value',
         name: 'kWh',
         nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 },
-        axisLabel: { fontSize: 10, fontWeight: 500, color: LIGHT_CHART_TEXT },
+        axisLabel: { fontSize: chartFonts.axis, fontWeight: 500, color: LIGHT_CHART_TEXT },
         axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } },
         splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } },
       },
@@ -339,7 +341,7 @@ export default function MonthlyCheckingPage() {
         },
       ],
     };
-  }, [rows]);
+  }, [rows, chartFonts]);
 
   const invalidBarOption: EChartsOption = useMemo(() => {
     const x = rows.map((r) => r.slot.slice(11)); // HH:MM
@@ -358,8 +360,8 @@ export default function MonthlyCheckingPage() {
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         textStyle: { color: '#4A4A4A' },
       },
-      xAxis: { type: 'category', data: x, axisLabel: { fontSize: 10, interval: 7, color: LIGHT_CHART_TEXT, fontWeight: 500 }, axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } } },
-      yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 }, axisLabel: { fontSize: 10, fontWeight: 500, color: LIGHT_CHART_TEXT }, axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } }, splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } } },
+      xAxis: { type: 'category', data: x, axisLabel: { fontSize: chartFonts.axis, interval: 7, color: LIGHT_CHART_TEXT, fontWeight: 500 }, axisLine: { lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } } },
+      yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: LIGHT_CHART_TEXT, fontWeight: 600 }, axisLabel: { fontSize: chartFonts.axis, fontWeight: 500, color: LIGHT_CHART_TEXT }, axisLine: { show: true, lineStyle: { color: LIGHT_AXIS_LINE, width: 1 } }, splitLine: { lineStyle: { color: LIGHT_GRID_LINE, width: 1, opacity: 0.9 } } },
       series: [
         {
           type: 'bar',
@@ -369,7 +371,7 @@ export default function MonthlyCheckingPage() {
         },
       ],
     };
-  }, [rows]);
+  }, [rows, chartFonts]);
 
   const invalidRows = useMemo(() => rows.filter((r) => r.invalidGreyChargeKwh > 0.0001), [rows]);
 

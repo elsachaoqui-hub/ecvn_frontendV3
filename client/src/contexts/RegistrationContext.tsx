@@ -19,7 +19,8 @@ export type AppMainView =
   | 'settlement-pre'
   | 'settlement-monthly'
   | 'checking-daily'
-  | 'checking-monthly';
+  | 'checking-monthly'
+  | 'web-settings';
 
 interface RegistrationState {
   // UI 狀態
