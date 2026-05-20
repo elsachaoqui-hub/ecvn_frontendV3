@@ -20,6 +20,7 @@ import SankeyDetailDialog, {
   type SankeyDetailFocus,
   type SankeyMetricFocus,
 } from '@/components/SankeyDetailDialog';
+import { useUiFont } from '@/contexts/UiFontContext';
 import { buildSankeyChartFromDates, loadSankeyExplorerDataset } from '@/lib/sankeyExplorerCsv';
 
 type HourRow = {
@@ -279,6 +280,7 @@ export default function SettlementPreSettlementPage({
   pageHeading = '4.1 預結算 - 桑基匹配圖',
   defaultStyleMode = 'ab',
 }: SettlementPreSettlementPageProps) {
+  const { chartFonts } = useUiFont();
   const chartDateLabel = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const hourlyRows = useMemo(() => buildHourlyRowsByDate(chartDateLabel), [chartDateLabel]);
   const now = useMemo(() => new Date(), []);
@@ -900,13 +902,13 @@ export default function SettlementPreSettlementPage({
           nodeGap: 7,
           draggable: true,
           lineStyle: { color: 'source', curveness: 0.45, opacity: 0.6 },
-          label: { color: '#0f172a', fontSize: 11, fontWeight: 600, overflow: 'breakAll' },
+          label: { color: '#0f172a', fontSize: chartFonts.sankeyNode, fontWeight: 600, overflow: 'breakAll' },
           data: sankeyModel.nodes,
           links: sankeyModel.links,
         },
       ],
     }),
-    [sankeyModel]
+    [sankeyModel, chartFonts.sankeyNode]
   );
 
   return (
@@ -921,17 +923,17 @@ export default function SettlementPreSettlementPage({
               </p>
             </div>
             {reDataDateSpan.start && reDataDateSpan.end ? (
-              <span className="rounded-full border border-indigo-200 bg-white/90 px-2.5 py-1 text-[10px] font-bold text-indigo-800">
+              <span className="rounded-full border border-indigo-200 bg-white/90 px-2.5 py-1 text-ui-10 font-bold text-indigo-800">
                 資料可用 {reDataDateSpan.start}～{reDataDateSpan.end}
               </span>
             ) : null}
           </div>
 
           <div className="mt-3 rounded-xl border border-slate-200/90 bg-white/95 p-3 shadow-sm">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">區間與目標設定</p>
+            <p className="mb-2 text-ui-10 font-black uppercase tracking-wide text-slate-500">區間與目標設定</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
               <div className="lg:col-span-3">
-                <label className="mb-1 block text-[10px] font-bold text-slate-600">起日</label>
+                <label className="mb-1 block text-ui-10 font-bold text-slate-600">起日</label>
                 <input
                   type="date"
                   value={reCumStart || reDataDateSpan.start}
@@ -942,7 +944,7 @@ export default function SettlementPreSettlementPage({
                 />
               </div>
               <div className="lg:col-span-3">
-                <label className="mb-1 block text-[10px] font-bold text-slate-600">迄日</label>
+                <label className="mb-1 block text-ui-10 font-bold text-slate-600">迄日</label>
                 <input
                   type="date"
                   value={reCumEnd || reDataDateSpan.end}
@@ -953,7 +955,7 @@ export default function SettlementPreSettlementPage({
                 />
               </div>
               <div className="lg:col-span-2">
-                <label className="mb-1 block text-[10px] font-bold text-slate-600">RE 年度目標（%）</label>
+                <label className="mb-1 block text-ui-10 font-bold text-slate-600">RE 年度目標（%）</label>
                 <input
                   type="number"
                   min={0}
@@ -977,7 +979,7 @@ export default function SettlementPreSettlementPage({
                 </button>
               </div>
             </div>
-            <p className="mt-2 text-[10px] font-semibold text-slate-500">
+            <p className="mt-2 text-ui-10 font-semibold text-slate-500">
               目前統計：{reRangeStart || '—'}～{reRangeEnd || '—'}
               {cumulativeReForRange.dayCount > 0 ? ` · ${cumulativeReForRange.dayCount} 日` : ''}
             </p>
@@ -985,7 +987,7 @@ export default function SettlementPreSettlementPage({
 
           <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-12">
             <div className="col-span-2 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm lg:col-span-5">
-              <p className="text-[11px] font-bold text-emerald-900">
+              <p className="text-ui-11 font-bold text-emerald-900">
                 <span className="cursor-help border-b border-dotted border-emerald-700" title={reAchievementTooltip}>
                   RE 累計達成率
                 </span>
@@ -1005,28 +1007,28 @@ export default function SettlementPreSettlementPage({
                   style={{ width: `${Math.min(100, Math.max(0, cumulativeReForRange.rePct))}%` }}
                 />
               </div>
-              <p className="mt-1 text-[10px] font-semibold text-slate-500">目標線 {reAnnualTargetPct.toFixed(1)}%</p>
+              <p className="mt-1 text-ui-10 font-semibold text-slate-500">目標線 {reAnnualTargetPct.toFixed(1)}%</p>
             </div>
 
             <div className="rounded-xl border border-indigo-200 bg-white px-3 py-2.5 shadow-sm lg:col-span-2">
-              <p className="text-[11px] font-bold text-slate-500">RE 年度目標</p>
+              <p className="text-ui-11 font-bold text-slate-500">RE 年度目標</p>
               <p className="mt-0.5 text-2xl font-black tabular-nums text-indigo-800">{reAnnualTargetPct.toFixed(1)}%</p>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm lg:col-span-2">
-              <p className="text-[11px] font-bold text-slate-500">累計成功匹配量</p>
+              <p className="text-ui-11 font-bold text-slate-500">累計成功匹配量</p>
               <p className="mt-0.5 text-xl font-black tabular-nums text-slate-900">
                 {cumulativeReForRange.sumMatched.toFixed(1)}
               </p>
-              <p className="text-[10px] font-semibold text-slate-500">kWh</p>
+              <p className="text-ui-10 font-semibold text-slate-500">kWh</p>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm lg:col-span-3">
-              <p className="text-[11px] font-bold text-slate-500">累計用電量</p>
+              <p className="text-ui-11 font-bold text-slate-500">累計用電量</p>
               <p className="mt-0.5 text-xl font-black tabular-nums text-slate-900">
                 {cumulativeReForRange.sumLoad.toFixed(1)}
               </p>
-              <p className="text-[10px] font-semibold text-slate-500">kWh · 區間 {cumulativeReForRange.dayCount} 日</p>
+              <p className="text-ui-10 font-semibold text-slate-500">kWh · 區間 {cumulativeReForRange.dayCount} 日</p>
             </div>
           </div>
 
@@ -1052,7 +1054,7 @@ export default function SettlementPreSettlementPage({
           </p>
           <div className="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-600">資料年度</label>
+              <label className="mb-1 block text-ui-10 font-bold text-slate-600">資料年度</label>
               <select
                 value={sankeyExplorerYear}
                 onChange={(e) => {
@@ -1071,7 +1073,7 @@ export default function SettlementPreSettlementPage({
               </select>
             </div>
             <div className="flex flex-1 flex-wrap gap-2">
-              <span className="w-full text-[10px] font-bold text-slate-600">月份（已結算可點）</span>
+              <span className="w-full text-ui-10 font-bold text-slate-600">月份（已結算可點）</span>
               <div className="flex w-full flex-wrap gap-1.5">
                 {sankeyMonthlyRowsForYear.map(({ month, label, selectable }) => (
                   <button
@@ -1418,7 +1420,7 @@ export default function SettlementPreSettlementPage({
                               type="button"
                               disabled={!!notedDays[row.dateLabel]}
                               onClick={() => setNotedDays((p) => ({ ...p, [row.dateLabel]: true }))}
-                              className="rounded border border-amber-400 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900 disabled:opacity-40"
+                              className="rounded border border-amber-400 bg-amber-50 px-2 py-0.5 text-ui-11 font-bold text-amber-900 disabled:opacity-40"
                             >
                               註記
                             </button>
@@ -1434,7 +1436,7 @@ export default function SettlementPreSettlementPage({
                                   return n;
                                 })
                               }
-                              className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-700 disabled:opacity-40"
+                              className="rounded border border-slate-300 bg-white px-2 py-0.5 text-ui-11 font-bold text-slate-700 disabled:opacity-40"
                             >
                               取消註記
                             </button>
@@ -1768,24 +1770,24 @@ export default function SettlementPreSettlementPage({
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-amber-200 bg-white px-3 py-3">
-              <p className="text-[11px] font-bold text-amber-800">多估計（實發 &gt; 實載，累積 kWh）</p>
+              <p className="text-ui-11 font-bold text-amber-800">多估計（實發 &gt; 實載，累積 kWh）</p>
               <p className="mt-1 text-xl font-black tabular-nums text-amber-900">{preSettlementReMetrics.surplusGenVsLoad.toFixed(1)}</p>
             </div>
             <div className="rounded-xl border border-rose-200 bg-white px-3 py-3">
-              <p className="text-[11px] font-bold text-rose-800">少估計（實載 &gt; 實發，累積 kWh）</p>
+              <p className="text-ui-11 font-bold text-rose-800">少估計（實載 &gt; 實發，累積 kWh）</p>
               <p className="mt-1 text-xl font-black tabular-nums text-rose-900">{preSettlementReMetrics.shortfallGenVsLoad.toFixed(1)}</p>
             </div>
             <div className="rounded-xl border border-indigo-200 bg-white px-3 py-3">
-              <p className="text-[11px] font-bold text-indigo-800">預計 RE（僅規劃量）</p>
+              <p className="text-ui-11 font-bold text-indigo-800">預計 RE（僅規劃量）</p>
               <p className="mt-1 text-2xl font-black tabular-nums text-indigo-900">{preSettlementReMetrics.rePlanPct.toFixed(2)}%</p>
-              <p className="mt-1 text-[10px] font-semibold text-slate-500">
+              <p className="mt-1 text-ui-10 font-semibold text-slate-500">
                 分子 {preSettlementReMetrics.sumTransferredPlan.toFixed(1)} ÷ 分母 {preSettlementReMetrics.totalLoadPlan.toFixed(1)} kWh
               </p>
             </div>
             <div className="rounded-xl border border-emerald-200 bg-white px-3 py-3">
-              <p className="text-[11px] font-bold text-emerald-800">實際 RE（即時量測）</p>
+              <p className="text-ui-11 font-bold text-emerald-800">實際 RE（即時量測）</p>
               <p className="mt-1 text-2xl font-black tabular-nums text-emerald-900">{preSettlementReMetrics.reActualPct.toFixed(2)}%</p>
-              <p className="mt-1 text-[10px] font-semibold text-slate-500">
+              <p className="mt-1 text-ui-10 font-semibold text-slate-500">
                 分子 {preSettlementReMetrics.sumTransferredActual.toFixed(1)} ÷ 分母 {preSettlementReMetrics.totalLoadActual.toFixed(1)} kWh
               </p>
             </div>
