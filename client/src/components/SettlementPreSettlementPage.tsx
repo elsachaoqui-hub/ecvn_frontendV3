@@ -1355,15 +1355,13 @@ export default function SettlementPreSettlementPage({
                       <th className="px-3 py-2 text-right font-bold">儲能餘額(∑)</th>
                       <th className="px-3 py-2 text-right font-bold text-blue-700">合約匹配量</th>
                       <th className="px-3 py-2 text-right font-bold text-blue-700">總匹配量</th>
-                      <th className="px-3 py-2 text-center font-bold">註記</th>
-                      <th className="px-3 py-2 text-center font-bold">取消註記</th>
-                      <th className="px-3 py-2 text-center font-bold">詳細資料</th>
+                      <th className="px-3 py-2 text-center font-bold">操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sankeyDailyRowsForExplorer.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="px-3 py-6 text-center text-sm font-semibold text-slate-500">
+                        <td colSpan={9} className="px-3 py-6 text-center text-sm font-semibold text-slate-500">
                           本月示範資料尚無列；可換選有資料的月份或調整年度。
                         </td>
                       </tr>
@@ -1423,42 +1421,38 @@ export default function SettlementPreSettlementPage({
                             />
                           </td>
                           <td className="px-3 py-2 text-center">
-                            <button
-                              type="button"
-                              disabled={!!notedDays[row.dateLabel]}
-                              onClick={() => setNotedDays((p) => ({ ...p, [row.dateLabel]: true }))}
-                              className="rounded border border-amber-400 bg-amber-50 px-2 py-0.5 text-ui-11 font-bold text-amber-900 disabled:opacity-40"
-                            >
-                              註記
-                            </button>
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <button
-                              type="button"
-                              disabled={!notedDays[row.dateLabel]}
-                              onClick={() =>
-                                setNotedDays((p) => {
-                                  const n = { ...p };
-                                  delete n[row.dateLabel];
-                                  return n;
-                                })
-                              }
-                              className="rounded border border-slate-300 bg-white px-2 py-0.5 text-ui-11 font-bold text-slate-700 disabled:opacity-40"
-                            >
-                              取消註記
-                            </button>
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSankeyExplorerView('quarter');
-                                setSankeyExplorerDay(row.dateLabel);
-                              }}
-                              className="rounded-md border border-blue-600 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
-                            >
-                              詳細資料
-                            </button>
+                            <div className="flex flex-wrap items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setNotedDays((p) => {
+                                    if (p[row.dateLabel]) {
+                                      const next = { ...p };
+                                      delete next[row.dateLabel];
+                                      return next;
+                                    }
+                                    return { ...p, [row.dateLabel]: true };
+                                  })
+                                }
+                                className={`rounded border px-2 py-0.5 text-ui-11 font-bold ${
+                                  notedDays[row.dateLabel]
+                                    ? 'border-red-500 bg-red-50 text-red-800 hover:bg-red-100'
+                                    : 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                                }`}
+                              >
+                                {notedDays[row.dateLabel] ? '註記' : '未註記'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSankeyExplorerView('quarter');
+                                  setSankeyExplorerDay(row.dateLabel);
+                                }}
+                                className="rounded-md border border-blue-600 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
+                              >
+                                詳細資料
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
