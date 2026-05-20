@@ -150,6 +150,9 @@ type SankeyExplorerSort = 'desc' | 'asc';
 const SANKEY_BACK_BTN =
   'rounded-md border border-indigo-600 bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm hover:bg-indigo-700';
 
+const SANKEY_NAV_BTN =
+  'rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 shadow-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40';
+
 const SANKEY_DETAIL_BTN =
   'rounded-md border border-blue-600 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-100';
 
@@ -188,6 +191,19 @@ function sortSankeyExplorerDates<T extends { dateLabel: string }>(rows: T[], ord
   return [...rows].sort((a, b) =>
     order === 'desc' ? b.dateLabel.localeCompare(a.dateLabel) : a.dateLabel.localeCompare(b.dateLabel)
   );
+}
+
+function filterSankeyDaysChronological(
+  rows: SankeyDetailDayRow[],
+  year: number,
+  month1to12: number
+): SankeyDetailDayRow[] {
+  return rows
+    .filter((r) => {
+      const [y, mm] = r.dateLabel.slice(0, 10).split('-').map(Number);
+      return y === year && mm === month1to12;
+    })
+    .sort((a, b) => a.dateLabel.localeCompare(b.dateLabel));
 }
 
 type SankeyDetailDayRow = {
@@ -374,14 +390,123 @@ export default function SettlementPreSettlementPage({
     [sankeyMonthlyRowsForYear, sankeyExplorerSort]
   );
 
+  const sankeyDailyRowsInSelectedMonth = useMemo(() => {
+    if (sankeyExplorerMonth == null) return [];
+    return filterSankeyDaysChronological(
+      sankeyDetailRows as SankeyDetailDayRow[],
+      sankeyExplorerYear,
+      sankeyExplorerMonth
+    );
+  }, [sankeyDetailRows, sankeyExplorerMonth, sankeyExplorerYear]);
+
   const sankeyDailyRowsForExplorer = useMemo(() => {
     if (sankeyExplorerView !== 'daily' || sankeyExplorerMonth == null) return [];
-    const filtered = (sankeyDetailRows as SankeyDetailDayRow[]).filter((r) => {
-      const [y, mm] = r.dateLabel.slice(0, 10).split('-').map(Number);
-      return y === sankeyExplorerYear && mm === sankeyExplorerMonth;
-    });
-    return sortSankeyExplorerDates(filtered, sankeyExplorerSort);
-  }, [sankeyDetailRows, sankeyExplorerMonth, sankeyExplorerSort, sankeyExplorerView, sankeyExplorerYear]);
+    return sortSankeyExplorerDates(sankeyDailyRowsInSelectedMonth, sankeyExplorerSort);
+  }, [sankeyDailyRowsInSelectedMonth, sankeyExplorerMonth, sankeyExplorerSort, sankeyExplorerView]);
+
+  const sankeySelectableMonths = useMemo(
+    () =>
+      sankeyMonthlyRowsForYear
+        .filter((m) => m.selectable)
+        .map((m) => m.month)
+        .sort((a, b) => a - b),
+    [sankeyMonthlyRowsForYear]
+  );
+
+  const sankeyMonthNavBounds = useMemo(() => {
+    const idx =
+      sankeyExplorerMonth != null ? sankeySelectableMonths.indexOf(sankeyExplorerMonth) : -1;
+    return {
+      canPrev: idx > 0,
+      canNext: idx >= 0 && idx < sankeySelectableMonths.length - 1,
+    };
+  }, [sankeyExplorerMonth, sankeySelectableMonths]);
+
+  const sankeyDayNavBounds = useMemo(() => {
+    const days = sankeyDailyRowsInSelectedMonth;
+    const idx = sankeyExplorerDay ? days.findIndex((d) => d.dateLabel === sankeyExplorerDay) : -1;
+    const monthIdx =
+      sankeyExplorerMonth != null ? sankeySelectableMonths.indexOf(sankeyExplorerMonth) : -1;
+    const hasPrevMonth = monthIdx > 0;
+    const hasNextMonth = monthIdx >= 0 && monthIdx < sankeySelectableMonths.length - 1;
+    return {
+      days,
+      idx,
+      canPrev: idx > 0 || hasPrevMonth,
+      canNext: (idx >= 0 && idx < days.length - 1) || hasNextMonth,
+    };
+  }, [sankeyDailyRowsInSelectedMonth, sankeyExplorerDay, sankeyExplorerMonth, sankeySelectableMonths]);
+
+  const openSankeyQuarterDetail = useCallback((dateLabel: string) => {
+    const [, mm] = dateLabel.slice(0, 10).split('-').map(Number);
+    if (mm) setSankeyExplorerMonth(mm);
+    setSankeyExplorerView('quarter');
+    setSankeyExplorerDay(dateLabel);
+    setSelectedSankeyDate(dateLabel);
+  }, []);
+
+  const stepSankeyExplorerMonth = useCallback(
+    (delta: -1 | 1) => {
+      if (sankeyExplorerMonth == null) return;
+      const idx = sankeySelectableMonths.indexOf(sankeyExplorerMonth);
+      const month = sankeySelectableMonths[idx + delta];
+      if (month == null) return;
+      setSankeyExplorerMonth(month);
+      setSankeyExplorerDay(null);
+      setSelectedSankeyDate(ymd(sankeyExplorerYear, month, 1));
+      if (sankeyExplorerView === 'quarter') {
+        const days = filterSankeyDaysChronological(
+          sankeyDetailRows as SankeyDetailDayRow[],
+          sankeyExplorerYear,
+          month
+        );
+        const pick = delta < 0 ? days[days.length - 1] : days[0];
+        if (pick) {
+          setSankeyExplorerDay(pick.dateLabel);
+          setSelectedSankeyDate(pick.dateLabel);
+        } else {
+          setSankeyExplorerView('daily');
+        }
+      }
+    },
+    [sankeyDetailRows, sankeyExplorerMonth, sankeyExplorerView, sankeyExplorerYear, sankeySelectableMonths]
+  );
+
+  const stepSankeyExplorerDay = useCallback(
+    (delta: -1 | 1) => {
+      const { days, idx } = sankeyDayNavBounds;
+      if (!sankeyExplorerDay || idx < 0) return;
+      const nextIdx = idx + delta;
+      if (nextIdx >= 0 && nextIdx < days.length) {
+        const next = days[nextIdx];
+        setSankeyExplorerDay(next.dateLabel);
+        setSelectedSankeyDate(next.dateLabel);
+        return;
+      }
+      const monthIdx =
+        sankeyExplorerMonth != null ? sankeySelectableMonths.indexOf(sankeyExplorerMonth) : -1;
+      const adjacentMonth = sankeySelectableMonths[monthIdx + delta];
+      if (adjacentMonth == null) return;
+      const adjacentDays = filterSankeyDaysChronological(
+        sankeyDetailRows as SankeyDetailDayRow[],
+        sankeyExplorerYear,
+        adjacentMonth
+      );
+      const pick = delta < 0 ? adjacentDays[adjacentDays.length - 1] : adjacentDays[0];
+      if (!pick) return;
+      setSankeyExplorerMonth(adjacentMonth);
+      setSankeyExplorerDay(pick.dateLabel);
+      setSelectedSankeyDate(pick.dateLabel);
+    },
+    [
+      sankeyDayNavBounds,
+      sankeyDetailRows,
+      sankeyExplorerDay,
+      sankeyExplorerMonth,
+      sankeyExplorerYear,
+      sankeySelectableMonths,
+    ]
+  );
 
   const energyFlowDrill: EnergyFlowDrill = useMemo(() => {
     if (sankeyExplorerView === 'quarter') return 'day';
@@ -1118,16 +1243,54 @@ export default function SettlementPreSettlementPage({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {sankeyExplorerView === 'quarter' ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSankeyExplorerView('daily');
-                    setSankeyExplorerDay(null);
-                  }}
-                  className={SANKEY_BACK_BTN}
-                >
-                  ← 返回每日
-                </button>
+                <>
+                  <button
+                    type="button"
+                    disabled={!sankeyDayNavBounds.canPrev}
+                    onClick={() => stepSankeyExplorerDay(-1)}
+                    className={SANKEY_NAV_BTN}
+                  >
+                    ◀ 往前
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!sankeyDayNavBounds.canNext}
+                    onClick={() => stepSankeyExplorerDay(1)}
+                    className={SANKEY_NAV_BTN}
+                  >
+                    往後 ▶
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSankeyExplorerView('daily');
+                      setSankeyExplorerDay(null);
+                    }}
+                    className={SANKEY_BACK_BTN}
+                  >
+                    ← 返回每日
+                  </button>
+                </>
+              ) : null}
+              {sankeyExplorerView === 'daily' ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={!sankeyMonthNavBounds.canPrev}
+                    onClick={() => stepSankeyExplorerMonth(-1)}
+                    className={SANKEY_NAV_BTN}
+                  >
+                    ◀ 往前
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!sankeyMonthNavBounds.canNext}
+                    onClick={() => stepSankeyExplorerMonth(1)}
+                    className={SANKEY_NAV_BTN}
+                  >
+                    往後 ▶
+                  </button>
+                </>
               ) : null}
               {sankeyExplorerView === 'daily' || sankeyExplorerView === 'quarter' ? (
                 <button
@@ -1157,6 +1320,11 @@ export default function SettlementPreSettlementPage({
               ) : null}
               {sankeyExplorerView === 'quarter' && sankeyExplorerDay ? (
                 <span className="text-xs font-bold text-slate-600">15 分鐘 · {sankeyExplorerDay}</span>
+              ) : null}
+              {sankeyExplorerView === 'daily' && sankeyExplorerMonth != null ? (
+                <span className="text-xs font-bold text-slate-600">
+                  每日明細 · {sankeyExplorerYear} 年 {MONTH_NAMES_TW[sankeyExplorerMonth - 1]}
+                </span>
               ) : null}
             </div>
           </div>
@@ -1368,7 +1536,15 @@ export default function SettlementPreSettlementPage({
                     ) : (
                       sankeyDailyRowsForExplorer.map((row) => (
                         <tr key={row.dateLabel} className="border-t border-slate-200 text-slate-900">
-                          <td className="px-3 py-2 font-semibold text-blue-800">{row.dateLabel}</td>
+                          <td className="px-3 py-2 font-semibold">
+                            <button
+                              type="button"
+                              onClick={() => openSankeyQuarterDetail(row.dateLabel)}
+                              className="text-blue-800 underline-offset-2 hover:underline"
+                            >
+                              {row.dateLabel}
+                            </button>
+                          </td>
                           <td className="px-3 py-2 text-right">
                             <SankeyMetricButton
                               value={row.generation}
@@ -1444,10 +1620,7 @@ export default function SettlementPreSettlementPage({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setSankeyExplorerView('quarter');
-                                  setSankeyExplorerDay(row.dateLabel);
-                                }}
+                                onClick={() => openSankeyQuarterDetail(row.dateLabel)}
                                 className="rounded-md border border-blue-600 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
                               >
                                 詳細資料
