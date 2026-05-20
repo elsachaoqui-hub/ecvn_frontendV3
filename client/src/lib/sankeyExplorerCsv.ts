@@ -8,6 +8,7 @@ export type SankeyAssetRow = {
   assetType: 'generation' | 'load';
   resourceType: string;
   siteName: string;
+  meterNumber: string;
   capacityKw: number;
 };
 
@@ -119,9 +120,19 @@ function parseAssetsCsv(text: string): SankeyAssetRow[] {
     assetId: cells[idx.asset_id],
     assetType: cells[idx.asset_type] as SankeyAssetRow['assetType'],
     resourceType: cells[idx.resource_type],
-    siteName: cells[idx.site_name],
+    siteName: (cells[idx.site_name] ?? '').trim(),
+    meterNumber: (cells[idx.meter_number] ?? '').trim(),
     capacityKw: num(cells[idx.capacity_kw], 'capacity_kw'),
   }));
+}
+
+/** 電號主檔顯示：G1 · 場站 · 表號 · 資源類型 */
+export function formatSankeyAssetLabel(assetId: string): string {
+  if (!assetId) return '（節點彙總）';
+  const asset = getSankeyAsset(assetId);
+  if (!asset) return assetId;
+  const meter = asset.meterNumber ? ` · 表號 ${asset.meterNumber}` : '';
+  return `${asset.assetId} · ${asset.siteName}${meter}（${asset.resourceType}）`;
 }
 
 function parseDetailCsv(text: string): {
@@ -276,6 +287,10 @@ export function getSankeyFlowsForNode(dateLabel: string, timeLabel: string, node
 
 export function getSankeyAsset(assetId: string): SankeyAssetRow | undefined {
   return loadSankeyExplorerDataset().assets.find((a) => a.assetId === assetId);
+}
+
+export function getSankeyAssetsByType(assetType: SankeyAssetRow['assetType']): SankeyAssetRow[] {
+  return loadSankeyExplorerDataset().assets.filter((a) => a.assetType === assetType);
 }
 
 export type AggregatedFlowRow = {

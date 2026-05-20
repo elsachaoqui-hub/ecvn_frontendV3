@@ -7,7 +7,9 @@ import {
 } from '@/components/ui/dialog';
 import {
   aggregateSankeyFlows,
+  formatSankeyAssetLabel,
   getSankeyAsset,
+  getSankeyAssetsByType,
   getSankeyFlows,
   getSankeyFlowsForDates,
   getSankeySlotDetail,
@@ -76,13 +78,6 @@ const METRIC_LABEL: Record<SankeyMetricFocus, string> = {
   all: '完整明細',
 };
 
-function assetLabel(assetId: string): string {
-  if (!assetId) return '（節點彙總）';
-  const asset = getSankeyAsset(assetId);
-  if (!asset) return assetId;
-  return `${assetId} · ${asset.siteName}（${asset.resourceType}）`;
-}
-
 function FlowTable({ rows, showSlotCount }: { rows: AggregatedFlowRow[]; showSlotCount?: boolean }) {
   if (rows.length === 0) {
     return <p className="text-sm text-slate-600">此範圍無對應流向紀錄。</p>;
@@ -93,10 +88,10 @@ function FlowTable({ rows, showSlotCount }: { rows: AggregatedFlowRow[]; showSlo
         <thead className="sticky top-0 bg-slate-100 text-slate-800">
           <tr>
             <th className="px-2 py-1.5 text-left font-bold">來源</th>
-            <th className="px-2 py-1.5 text-left font-bold">電號</th>
+            <th className="px-2 py-1.5 text-left font-bold">來源電號／表號</th>
             <th className="px-2 py-1.5 text-center font-bold">→</th>
             <th className="px-2 py-1.5 text-left font-bold">去向</th>
-            <th className="px-2 py-1.5 text-left font-bold">電號</th>
+            <th className="px-2 py-1.5 text-left font-bold">去向電號／表號</th>
             <th className="px-2 py-1.5 text-right font-bold">kWh</th>
             {showSlotCount ? <th className="px-2 py-1.5 text-right font-bold">時段數</th> : null}
           </tr>
@@ -105,10 +100,10 @@ function FlowTable({ rows, showSlotCount }: { rows: AggregatedFlowRow[]; showSlo
           {rows.map((r, i) => (
             <tr key={`${r.sourceNode}-${r.targetNode}-${i}`} className="border-t border-slate-100 text-slate-900">
               <td className="px-2 py-1.5 font-semibold">{r.sourceNode}</td>
-              <td className="px-2 py-1.5 text-slate-600">{assetLabel(r.sourceAssetId)}</td>
+              <td className="px-2 py-1.5 text-slate-600">{formatSankeyAssetLabel(r.sourceAssetId)}</td>
               <td className="px-2 py-1.5 text-center text-indigo-600">→</td>
               <td className="px-2 py-1.5 font-semibold">{r.targetNode}</td>
-              <td className="px-2 py-1.5 text-slate-600">{assetLabel(r.targetAssetId)}</td>
+              <td className="px-2 py-1.5 text-slate-600">{formatSankeyAssetLabel(r.targetAssetId)}</td>
               <td className="px-2 py-1.5 text-right tabular-nums font-bold">{r.flowKwh.toFixed(3)}</td>
               {showSlotCount ? (
                 <td className="px-2 py-1.5 text-right tabular-nums text-slate-500">{r.slotCount}</td>
@@ -142,6 +137,7 @@ function AssetKwTable({
           <tr className="text-slate-600">
             <th className="py-1 text-left font-bold">電號</th>
             <th className="py-1 text-left font-bold">場站</th>
+            <th className="py-1 text-left font-bold">表號</th>
             <th className="py-1 text-right font-bold">kW</th>
             <th className="py-1 text-right font-bold">{unit}</th>
           </tr>
@@ -153,6 +149,7 @@ function AssetKwTable({
               <tr key={id} className="border-t border-slate-100 text-slate-900">
                 <td className="py-1 font-bold">{id}</td>
                 <td className="py-1 text-slate-600">{asset?.siteName ?? '—'}</td>
+                <td className="py-1 font-mono text-slate-600">{asset?.meterNumber || '—'}</td>
                 <td className="py-1 text-right tabular-nums">{(kw[id] ?? 0).toFixed(3)}</td>
                 <td className="py-1 text-right tabular-nums font-semibold">{(kwh[id] ?? 0).toFixed(3)}</td>
               </tr>
@@ -430,8 +427,33 @@ export default function SankeyDetailDialog({ focus, onClose }: SankeyDetailDialo
           />
         ) : null}
 
-        <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-[10px] text-slate-500">
-          資料來源：sankey_slots_15min_detail.csv、sankey_flows_15min.csv · 電號主檔 {assets.length} 筆
+        <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-ui-10 text-slate-600">
+          <p className="font-bold text-slate-700">電號主檔（sankey_asset_registry.csv）</p>
+          <div className="mt-2 max-h-36 overflow-auto">
+            <table className="min-w-full text-ui-10">
+              <thead>
+                <tr className="text-slate-500">
+                  <th className="py-0.5 pr-2 text-left font-bold">電號</th>
+                  <th className="py-0.5 pr-2 text-left font-bold">場站</th>
+                  <th className="py-0.5 pr-2 text-left font-bold">表號</th>
+                  <th className="py-0.5 text-left font-bold">類型</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...getSankeyAssetsByType('generation'), ...getSankeyAssetsByType('load')].map((a) => (
+                  <tr key={a.assetId} className="border-t border-slate-200/80 text-slate-800">
+                    <td className="py-0.5 pr-2 font-bold">{a.assetId}</td>
+                    <td className="py-0.5 pr-2">{a.siteName}</td>
+                    <td className="py-0.5 pr-2 font-mono">{a.meterNumber}</td>
+                    <td className="py-0.5">{a.resourceType}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-slate-500">
+            數值來源：sankey_slots_15min_detail.csv、sankey_flows_15min.csv · 共 {assets.length} 筆電號
+          </p>
         </div>
       </DialogContent>
     </Dialog>

@@ -6,7 +6,17 @@
 
 | 檔案 | 說明 |
 |------|------|
-| `sankey_asset_registry.csv` | 電號主檔（G1～G5 發電、L1～L5 負載） |
+| `sankey_asset_registry.csv` | 電號主檔（G1～G5 發電、L1～L5 負載；含場站名稱 `site_name`、表號 `meter_number`） |
+
+### 電號主檔 `sankey_asset_registry.csv`
+| 欄位 | 說明 |
+|------|------|
+| `asset_id` | 電號 G1～G5、L1～L5 |
+| `asset_type` | `generation` / `load` |
+| `resource_type` | 太陽能、風力、工業負載等 |
+| `site_name` | 場站名稱（顯示用，勿填表號） |
+| `meter_number` | 表號（如 M301122334） |
+| `capacity_kw` | 裝置容量 kW |
 | `sankey_slots_15min_detail.csv` | **主事實表**：每 15 分鐘一列，含各電號 kW/kWh、儲能、合約、桑基節點加總 |
 | `sankey_flows_15min.csv` | **流向明細**：桑基每一條邊（來源→去向），可對應電號 |
 | `sankey_explorer_daily.csv` | 日彙總（由 15 分鐘自動加總，可覆寫校對） |

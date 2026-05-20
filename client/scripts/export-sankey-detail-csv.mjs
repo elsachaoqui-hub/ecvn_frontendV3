@@ -15,16 +15,16 @@ const GEN_WEIGHTS = [0.3, 0.22, 0.18, 0.16, 0.14];
 const LOAD_WEIGHTS = [0.28, 0.24, 0.2, 0.16, 0.12];
 
 const ASSETS = [
-  { asset_id: 'G1', asset_type: 'generation', resource_type: '太陽能', site_name: '甲案 PV-A', capacity_kw: 520 },
-  { asset_id: 'G2', asset_type: 'generation', resource_type: '太陽能', site_name: '乙案 PV-B', capacity_kw: 480 },
-  { asset_id: 'G3', asset_type: 'generation', resource_type: '風力', site_name: '離岸風場 A', capacity_kw: 600 },
-  { asset_id: 'G4', asset_type: 'generation', resource_type: '水力', site_name: '小水力 C', capacity_kw: 350 },
-  { asset_id: 'G5', asset_type: 'generation', resource_type: '生質能', site_name: '生質機組 D', capacity_kw: 280 },
-  { asset_id: 'L1', asset_type: 'load', resource_type: '工業負載', site_name: '科學園區 A', capacity_kw: 900 },
-  { asset_id: 'L2', asset_type: 'load', resource_type: '工業負載', site_name: '加工區 B', capacity_kw: 750 },
-  { asset_id: 'L3', asset_type: 'load', resource_type: '商業負載', site_name: '商辦 C', capacity_kw: 620 },
-  { asset_id: 'L4', asset_type: 'load', resource_type: '公共負載', site_name: '校園 D', capacity_kw: 480 },
-  { asset_id: 'L5', asset_type: 'load', resource_type: '住宅負載', site_name: '社區 E', capacity_kw: 400 },
+  { asset_id: 'G1', asset_type: 'generation', resource_type: '太陽能', site_name: '甲案 PV-A', meter_number: 'M301122334', capacity_kw: 520 },
+  { asset_id: 'G2', asset_type: 'generation', resource_type: '太陽能', site_name: '乙案 PV-B', meter_number: 'M301122335', capacity_kw: 480 },
+  { asset_id: 'G3', asset_type: 'generation', resource_type: '風力', site_name: '離岸風場 A', meter_number: 'M301122336', capacity_kw: 600 },
+  { asset_id: 'G4', asset_type: 'generation', resource_type: '水力', site_name: '小水力 C', meter_number: 'M301122337', capacity_kw: 350 },
+  { asset_id: 'G5', asset_type: 'generation', resource_type: '生質能', site_name: '生質機組 D', meter_number: 'M301122338', capacity_kw: 280 },
+  { asset_id: 'L1', asset_type: 'load', resource_type: '工業負載', site_name: '科學園區 A', meter_number: 'M301122339', capacity_kw: 900 },
+  { asset_id: 'L2', asset_type: 'load', resource_type: '工業負載', site_name: '加工區 B', meter_number: 'M301122340', capacity_kw: 750 },
+  { asset_id: 'L3', asset_type: 'load', resource_type: '商業負載', site_name: '商辦 C', meter_number: 'M301122341', capacity_kw: 620 },
+  { asset_id: 'L4', asset_type: 'load', resource_type: '公共負載', site_name: '校園 D', meter_number: 'M301122342', capacity_kw: 480 },
+  { asset_id: 'L5', asset_type: 'load', resource_type: '住宅負載', site_name: '社區 E', meter_number: 'M301122343', capacity_kw: 400 },
 ];
 
 function pad2(n) {
@@ -402,7 +402,7 @@ const flowHeaders = [
 fs.mkdirSync(dataDir, { recursive: true });
 writeCsvUtf8Bom(
   path.join(dataDir, 'sankey_asset_registry.csv'),
-  toCsv(['asset_id', 'asset_type', 'resource_type', 'site_name', 'capacity_kw'], ASSETS)
+  toCsv(['asset_id', 'asset_type', 'resource_type', 'site_name', 'meter_number', 'capacity_kw'], ASSETS)
 );
 writeCsvUtf8Bom(path.join(dataDir, 'sankey_slots_15min_detail.csv'), toCsv(slotHeaders, slotRows));
 writeCsvUtf8Bom(path.join(dataDir, 'sankey_flows_15min.csv'), toCsv(flowHeaders, flowRows));

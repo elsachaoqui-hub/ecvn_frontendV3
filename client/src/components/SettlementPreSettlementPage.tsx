@@ -1180,10 +1180,34 @@ export default function SettlementPreSettlementPage({
           <p className="mb-2 text-sm font-black text-slate-900">
             桑基匹配明細表（依年度彙總；可下鑽至日與 15 分鐘並編輯示範數值）
           </p>
-          <p className="mb-3 text-xs font-semibold text-slate-600">
+          <p className="mb-2 text-xs font-semibold text-slate-600">
             選擇年度後，已結算月份可點選；未結算月份為灰色。由【詳細資料】進入每日明細，再進入 15
             分鐘可編輯量測值並填寫原因；異常以紅色標示，廠商確認後改為綠色。表格數值與上方桑基圖節點／連線可點擊，開啟 G1～G5、L1～L5 與流向組成明細。
           </p>
+          <div className="mb-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="min-w-full text-ui-10 text-slate-700">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="px-2 py-1 text-left font-bold">電號</th>
+                  <th className="px-2 py-1 text-left font-bold">場站</th>
+                  <th className="px-2 py-1 text-left font-bold">表號</th>
+                  <th className="px-2 py-1 text-left font-bold">類型</th>
+                  <th className="px-2 py-1 text-right font-bold">容量 kW</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sankeyExplorerDataset.assets.map((a) => (
+                  <tr key={a.assetId} className="border-t border-slate-100">
+                    <td className="px-2 py-1 font-bold text-slate-900">{a.assetId}</td>
+                    <td className="px-2 py-1">{a.siteName}</td>
+                    <td className="px-2 py-1 font-mono">{a.meterNumber}</td>
+                    <td className="px-2 py-1">{a.resourceType}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{a.capacityKw}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div className="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <div>
               <label className="mb-1 block text-ui-10 font-bold text-slate-600">資料年度</label>
