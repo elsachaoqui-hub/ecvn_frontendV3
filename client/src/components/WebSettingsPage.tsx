@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useUiFont } from '@/contexts/UiFontContext';
-import { UI_FONT_KEYS, UI_FONT_META } from '@/lib/uiFontScale';
+import { UI_FONT_KEYS, UI_FONT_META, UI_FONT_MIN_PX } from '@/lib/uiFontScale';
 
 export default function WebSettingsPage() {
   const { scale, setFontSize, resetAll } = useUiFont();
@@ -21,8 +21,8 @@ export default function WebSettingsPage() {
         <CardHeader>
           <CardTitle className="text-lg">字體大小</CardTitle>
           <CardDescription className="text-sm">
-            全站共 <strong>{UI_FONT_KEYS.length}</strong> 種字級（10～36px）。下方數值對應各頁面使用的
-            Tailwind class 與圖表字級。
+            全站共 <strong>{UI_FONT_KEYS.length}</strong> 種字級；小於 {UI_FONT_MIN_PX}px 的項目預設皆為{' '}
+            <strong>{UI_FONT_MIN_PX}px</strong>。下方數值對應各頁面使用的 Tailwind class 與圖表字級。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -51,7 +51,7 @@ export default function WebSettingsPage() {
                       <td className="px-3 py-2 text-right">
                         <Input
                           type="number"
-                          min={8}
+                          min={UI_FONT_MIN_PX}
                           max={48}
                           step={0.5}
                           value={px}
@@ -81,10 +81,7 @@ export default function WebSettingsPage() {
             <p className="font-bold">分類摘要</p>
             <ul className="mt-1 list-inside list-disc space-y-0.5">
               <li>
-                <strong>10～11px</strong>：圖表軸、圖例、桑基圖（text-ui-10、text-ui-11）
-              </li>
-              <li>
-                <strong>12～14px</strong>：標籤、表格、按鈕、內文（text-xs、text-sm，使用最多）
+                <strong>15px（原 10～14 級）</strong>：圖表軸、圖例、標籤、表格、按鈕、內文（text-ui-10/11、text-xs、text-sm）
               </li>
               <li>
                 <strong>16～20px</strong>：表單、區塊與對話框標題

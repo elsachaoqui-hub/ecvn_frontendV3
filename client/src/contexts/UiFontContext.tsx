@@ -11,7 +11,9 @@ import {
 import {
   applyUiFontScaleToDocument,
   getChartFontSizes,
+  clampUiFontPx,
   loadUiFontScale,
+  normalizeUiFontScale,
   saveUiFontScale,
   UI_FONT_DEFAULTS,
   type UiFontKey,
@@ -36,12 +38,11 @@ export function UiFontProvider({ children }: { children: ReactNode }) {
   }, [scale]);
 
   const setFontSize = useCallback((key: UiFontKey, px: number) => {
-    const clamped = Math.min(48, Math.max(8, Math.round(px * 10) / 10));
-    setScale((prev) => ({ ...prev, [key]: clamped }));
+    setScale((prev) => ({ ...prev, [key]: clampUiFontPx(px) }));
   }, []);
 
   const resetAll = useCallback(() => {
-    setScale({ ...UI_FONT_DEFAULTS });
+    setScale(normalizeUiFontScale(UI_FONT_DEFAULTS));
   }, []);
 
   const chartFonts = useMemo(() => getChartFontSizes(scale), [scale]);

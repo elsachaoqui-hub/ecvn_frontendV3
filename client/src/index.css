@@ -67,11 +67,11 @@
 
 :root {
   /* 全站字級（px）— 可由 7.4 設定網頁調整，見 lib/uiFontScale.ts */
-  --ui-font-10: 10px;
-  --ui-font-11: 11px;
-  --ui-font-12: 12px;
-  --ui-font-13: 13px;
-  --ui-font-14: 14px;
+  --ui-font-10: 15px;
+  --ui-font-11: 15px;
+  --ui-font-12: 15px;
+  --ui-font-13: 15px;
+  --ui-font-14: 15px;
   --ui-font-16: 16px;
   --ui-font-18: 18px;
   --ui-font-20: 20px;
