@@ -148,8 +148,7 @@ export default function SettlementEnergyFlowSankey({
 
     const nodes = SANKEY_CHART_NODES.filter((name) => usedNodes.has(name)).map((name) => {
       const depth = NODE_DEPTH[name] ?? 0;
-      const labelPosition =
-        depth === 0 ? ('left' as const) : depth === 3 ? ('right' as const) : ('inside' as const);
+      const labelPosition = 'right' as const;
       const labelDistance = depth === 0 ? 8 : depth === 3 ? 12 : 6;
       return {
         name,

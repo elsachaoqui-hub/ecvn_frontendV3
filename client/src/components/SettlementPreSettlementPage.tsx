@@ -692,7 +692,7 @@ export default function SettlementPreSettlementPage({
             ? `${generatorMeters[idx % generatorMeters.length]}｜太陽能｜${String(row.hour).padStart(2, '0')}:00`
             : `發電端｜${String(row.hour).padStart(2, '0')}:00`,
           itemStyle: { color: '#f59e0b' },
-          label: { position: 'left' as const },
+          label: { position: 'right' as const },
         })),
         { name: storageAccount, itemStyle: { color: '#7c3aed' }, label: { position: 'right' as const } },
       ];
@@ -723,7 +723,7 @@ export default function SettlementPreSettlementPage({
       const loadMeters = ['L-501', 'L-502', 'L-503', 'L-504', 'L-505'];
       const storageAccount = '儲能帳戶（放電）';
       const nodes = [
-        { name: storageAccount, itemStyle: { color: '#7c3aed' }, label: { position: 'left' as const } },
+        { name: storageAccount, itemStyle: { color: '#7c3aed' }, label: { position: 'right' as const } },
         ...dischargeHours.map((row, idx) => ({
           name: showLoadMeterId
             ? `${loadMeters[idx % loadMeters.length]}｜用電端｜${String(row.hour).padStart(2, '0')}:00`
@@ -785,12 +785,12 @@ export default function SettlementPreSettlementPage({
     const storageHourTargets = showStorageHours ? rightStorageTimeNodes : [rightStorageBucket];
 
     const nodes: Array<{ name: string; itemStyle?: { color: string }; label?: { position: 'left' | 'right' | 'inside' } }> = [
-      ...leftNodes.map((name) => ({ name, itemStyle: { color: '#f59e0b' }, label: { position: 'left' as const } })),
-      { name: leftPrevDayStorage, itemStyle: { color: '#0f766e' }, label: { position: 'left' as const } },
-      { name: middleContract, itemStyle: { color: '#4f46e5' }, label: { position: 'inside' as const } },
-      { name: middleStorage, itemStyle: { color: '#7c3aed' }, label: { position: 'inside' as const } },
-      { name: middleStorageBalance, itemStyle: { color: '#5b21b6' }, label: { position: 'inside' as const } },
-      { name: middleSurplus, itemStyle: { color: '#a16207' }, label: { position: 'inside' as const } },
+      ...leftNodes.map((name) => ({ name, itemStyle: { color: '#f59e0b' }, label: { position: 'right' as const } })),
+      { name: leftPrevDayStorage, itemStyle: { color: '#0f766e' }, label: { position: 'right' as const } },
+      { name: middleContract, itemStyle: { color: '#4f46e5' }, label: { position: 'right' as const } },
+      { name: middleStorage, itemStyle: { color: '#7c3aed' }, label: { position: 'right' as const } },
+      { name: middleStorageBalance, itemStyle: { color: '#5b21b6' }, label: { position: 'right' as const } },
+      { name: middleSurplus, itemStyle: { color: '#a16207' }, label: { position: 'right' as const } },
       { name: rightContractUser, itemStyle: { color: '#2563eb' }, label: { position: 'right' as const } },
       { name: rightDischargeWindow, itemStyle: { color: '#1e40af' }, label: { position: 'right' as const } },
       ...rightLoadMeterNodes.map((name) => ({ name, itemStyle: { color: '#1d4ed8' }, label: { position: 'right' as const } })),
@@ -893,7 +893,7 @@ export default function SettlementPreSettlementPage({
       series: [
         {
           type: 'sankey',
-          left: 6,
+          left: 12,
           right: 170,
           top: 8,
           bottom: 8,
@@ -902,7 +902,14 @@ export default function SettlementPreSettlementPage({
           nodeGap: 7,
           draggable: true,
           lineStyle: { color: 'source', curveness: 0.45, opacity: 0.6 },
-          label: { color: '#0f172a', fontSize: chartFonts.sankeyNode, fontWeight: 600, overflow: 'breakAll' },
+          label: {
+            color: '#0f172a',
+            fontSize: chartFonts.sankeyNode,
+            fontWeight: 600,
+            overflow: 'breakAll',
+            position: 'right',
+            distance: 8,
+          },
           data: sankeyModel.nodes,
           links: sankeyModel.links,
         },
