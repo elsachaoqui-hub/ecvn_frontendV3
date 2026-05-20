@@ -1,4 +1,5 @@
-date,generation_kwh,load_kwh,storage_in_kwh,storage_out_kwh,storage_balance_kwh,contract_matched_kwh,total_matched_kwh
+﻿date,generation_kwh,load_kwh,storage_in_kwh,storage_out_kwh,storage_balance_kwh,contract_matched_kwh,total_matched_kwh
+2026-05-20,1428.4,1729.1,93.3,68.6,30.7,400.078,458.389
 2026-05-19,1428.4,1729.5,93.7,68.5,31.2,399.63,457.854
 2026-05-18,1428.6,1729,93.5,68.8,30.7,398.997,457.476
 2026-05-17,1428,1730,93.3,68.8,30.5,398.859,457.341
@@ -12,4 +13,3 @@ date,generation_kwh,load_kwh,storage_in_kwh,storage_out_kwh,storage_balance_kwh,
 2026-05-09,1428.4,1729.1,93.3,68.6,30.7,400.082,458.392
 2026-05-08,1428.4,1729.5,93.7,68.5,31.2,399.626,457.851
 2026-05-07,1428.6,1729,93.5,68.8,30.7,398.994,457.476
-2026-05-06,1428,1730,93.3,68.8,30.5,398.859,457.338

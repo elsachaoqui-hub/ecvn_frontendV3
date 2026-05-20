@@ -232,6 +232,11 @@ function toCsv(headers, rows) {
   return lines.join('\n') + '\n';
 }
 
+/** UTF-8 BOM：Excel 在 Windows 上才能正確顯示中文 */
+function writeCsvUtf8Bom(filePath, content) {
+  fs.writeFileSync(filePath, '\uFEFF' + content, 'utf8');
+}
+
 function buildDataset() {
   const baseDate = new Date();
   baseDate.setHours(12, 0, 0, 0);
@@ -395,14 +400,13 @@ const flowHeaders = [
 ];
 
 fs.mkdirSync(dataDir, { recursive: true });
-fs.writeFileSync(
+writeCsvUtf8Bom(
   path.join(dataDir, 'sankey_asset_registry.csv'),
-  toCsv(['asset_id', 'asset_type', 'resource_type', 'site_name', 'capacity_kw'], ASSETS),
-  'utf8'
+  toCsv(['asset_id', 'asset_type', 'resource_type', 'site_name', 'capacity_kw'], ASSETS)
 );
-fs.writeFileSync(path.join(dataDir, 'sankey_slots_15min_detail.csv'), toCsv(slotHeaders, slotRows), 'utf8');
-fs.writeFileSync(path.join(dataDir, 'sankey_flows_15min.csv'), toCsv(flowHeaders, flowRows), 'utf8');
-fs.writeFileSync(
+writeCsvUtf8Bom(path.join(dataDir, 'sankey_slots_15min_detail.csv'), toCsv(slotHeaders, slotRows));
+writeCsvUtf8Bom(path.join(dataDir, 'sankey_flows_15min.csv'), toCsv(flowHeaders, flowRows));
+writeCsvUtf8Bom(
   path.join(dataDir, 'sankey_explorer_daily.csv'),
   toCsv(
     [
@@ -416,8 +420,7 @@ fs.writeFileSync(
       'total_matched_kwh',
     ],
     dailyRows
-  ),
-  'utf8'
+  )
 );
 
 // 保留舊 15min 精簡檔（相容）由 detail 衍生
@@ -432,7 +435,7 @@ const legacy15 = slotRows.map((s) => ({
   storage_plan_kwh: s.storage_plan_kwh,
   storage_actual_kwh: s.storage_actual_kwh,
 }));
-fs.writeFileSync(
+writeCsvUtf8Bom(
   path.join(dataDir, 'sankey_explorer_15min.csv'),
   toCsv(
     [
@@ -447,8 +450,7 @@ fs.writeFileSync(
       'storage_actual_kwh',
     ],
     legacy15
-  ),
-  'utf8'
+  )
 );
 
 console.log(`assets: ${ASSETS.length}`);

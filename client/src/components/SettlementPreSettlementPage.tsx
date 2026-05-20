@@ -70,7 +70,7 @@ type QuarterRow = {
   storageActual: number;
 };
 
-/** ????????? 96 ? 15 ?????????????????????? */
+/** 將單日小時列展開為 96 筆 15 分鐘列（每小時四等分加權，加總與小時值一致） */
 function expandHourlyToQuarterRows(rows: HourRow[], dateLabel: string): QuarterRow[] {
   const dateSeed = dateLabel.split('-').reduce((acc, part) => acc + Number(part || 0), 0);
   const out: QuarterRow[] = [];
@@ -130,18 +130,18 @@ function pickRowsByGranularity(rows: HourRow[], granularity: SankeyGranularity):
 }
 
 const MONTH_NAMES_TW = [
-  '??',
-  '??',
-  '??',
-  '??',
-  '??',
-  '??',
-  '??',
-  '??',
-  '??',
-  '??',
-  '???',
-  '???',
+  '一月',
+  '二月',
+  '三月',
+  '四月',
+  '五月',
+  '六月',
+  '七月',
+  '八月',
+  '九月',
+  '十月',
+  '十一月',
+  '十二月',
 ] as const;
 
 type SankeyExplorerSort = 'desc' | 'asc';
@@ -208,7 +208,7 @@ function ymd(year: number, month1to12: number, day: number) {
   return `${year}-${pad2(month1to12)}-${pad2(day)}`;
 }
 
-/** ??????????????????????? */
+/** 示範規則：未來曆月不可點；其餘視為已結算可下鑽 */
 function isSankeyMonthSelectable(year: number, month1to12: number) {
   const t = new Date();
   const y = t.getFullYear();
@@ -276,7 +276,7 @@ function sumSankeyDetailRows(rows: SankeyDetailDayRow[]): Omit<EnergyFlowAggrega
 }
 
 export default function SettlementPreSettlementPage({
-  pageHeading = '4.1 ??? - ?????',
+  pageHeading = '4.1 預結算 - 桑基匹配圖',
   defaultStyleMode = 'ab',
 }: SettlementPreSettlementPageProps) {
   const chartDateLabel = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -340,14 +340,14 @@ export default function SettlementPreSettlementPage({
   const sankeyExplorerDataset = useMemo(() => loadSankeyExplorerDataset(), []);
   const sankeyDetailRows = sankeyExplorerDataset.dailyRows;
 
-  /** ????????????? RE ??????? */
+  /** 桑基明細表可用日期範圍（供 RE 累計預設區間） */
   const reDataDateSpan = useMemo(() => {
     if (!sankeyDetailRows.length) return { start: '', end: '' };
     const asc = [...sankeyDetailRows].sort((a, b) => a.dateLabel.localeCompare(b.dateLabel));
     return { start: asc[0].dateLabel, end: asc[asc.length - 1].dateLabel };
   }, [sankeyDetailRows]);
 
-  const sankeyDisplayDateText = useMemo(() => `???${selectedSankeyDate}`, [selectedSankeyDate]);
+  const sankeyDisplayDateText = useMemo(() => `日期：${selectedSankeyDate}`, [selectedSankeyDate]);
 
   const sankeyExplorerYearOptions = useMemo(() => {
     const ys = new Set<number>();
@@ -389,7 +389,7 @@ export default function SettlementPreSettlementPage({
 
   const energyFlowAggregate = useMemo((): EnergyFlowAggregate => {
     let rows: SankeyDetailDayRow[] = [];
-    let periodLabel = `${sankeyExplorerYear} ?`;
+    let periodLabel = `${sankeyExplorerYear} 年`;
 
     if (sankeyExplorerView === 'quarter' && sankeyExplorerDay) {
       const dayRow = (sankeyDetailRows as SankeyDetailDayRow[]).find((r) => r.dateLabel === sankeyExplorerDay);
@@ -397,7 +397,7 @@ export default function SettlementPreSettlementPage({
       periodLabel = sankeyExplorerDay;
     } else if (sankeyExplorerView === 'daily' && sankeyExplorerMonth != null) {
       rows = sankeyDailyRowsForExplorer;
-      periodLabel = `${sankeyExplorerYear} ? ${MONTH_NAMES_TW[sankeyExplorerMonth - 1]}`;
+      periodLabel = `${sankeyExplorerYear} 年 ${MONTH_NAMES_TW[sankeyExplorerMonth - 1]}`;
     } else {
       rows = (sankeyDetailRows as SankeyDetailDayRow[]).filter((r) =>
         r.dateLabel.startsWith(`${sankeyExplorerYear}-`)
@@ -570,7 +570,7 @@ export default function SettlementPreSettlementPage({
     if (!editTarget) return;
     const reason = editTarget.reason.trim();
     if (!reason) {
-      window.alert('????');
+      window.alert('請寫原因');
       return;
     }
     const generationActual = Number(editTarget.draftGeneration);
@@ -622,7 +622,7 @@ export default function SettlementPreSettlementPage({
     });
   }, [explorerDayPrevBalance, explorerQuarterDisplay, sankeyExplorerDay, slotOverrides]);
 
-  /** RE ?????%?????????????????????? */
+  /** RE 年度目標（%）；累計區間起迄可自訂，預設帶入資料可用範圍 */
   const [reAnnualTargetPct, setReAnnualTargetPct] = useState(90);
   const [reCumStart, setReCumStart] = useState('');
   const [reCumEnd, setReCumEnd] = useState('');
@@ -657,7 +657,7 @@ export default function SettlementPreSettlementPage({
   const reVsTargetDiff = Number((cumulativeReForRange.rePct - reAnnualTargetPct).toFixed(2));
 
   const reAchievementTooltip =
-    'RE ???????????????????????????????????????????????????????????????????????????????????100%??????????? kWh?';
+    'RE 累計達成率計算方式：將下方自訂「起日～迄日」區間內，每日「總匹配量（儲能提領＋合約匹配量）」加總為分子；同一區間內每日「用電端」用電量加總為分母；達成率＝分子÷分母×100%。數值單位為示範資料之 kWh。';
 
   const effectiveGranularity: SankeyGranularity = styleMode === 'ab' ? granularity : cExpanded ? 'detail24h' : 'summary4h';
   const activeHourlyRows = useMemo(() => buildHourlyRowsByDate(selectedSankeyDate), [selectedSankeyDate]);
@@ -683,12 +683,12 @@ export default function SettlementPreSettlementPage({
     if (sankeyFlowView === 'charge') {
       const chargeHours = activeHourlyRows.filter((row) => row.hour >= 10 && row.hour <= 14);
       const generatorMeters = ['G-101', 'G-102', 'G-103', 'G-104', 'G-105'];
-      const storageAccount = '????????';
+      const storageAccount = '儲能帳戶（充電）';
       const nodes = [
         ...chargeHours.map((row, idx) => ({
           name: showGeneratorMeterId
-            ? `${generatorMeters[idx % generatorMeters.length]}?????${String(row.hour).padStart(2, '0')}:00`
-            : `????${String(row.hour).padStart(2, '0')}:00`,
+            ? `${generatorMeters[idx % generatorMeters.length]}｜太陽能｜${String(row.hour).padStart(2, '0')}:00`
+            : `發電端｜${String(row.hour).padStart(2, '0')}:00`,
           itemStyle: { color: '#f59e0b' },
           label: { position: 'left' as const },
         })),
@@ -698,8 +698,8 @@ export default function SettlementPreSettlementPage({
         const chargeValue = Number(Math.max(row.storageActual, row.generationActual * 0.1, 0.1).toFixed(1));
         return {
           source: showGeneratorMeterId
-            ? `${generatorMeters[idx % generatorMeters.length]}?????${String(row.hour).padStart(2, '0')}:00`
-            : `????${String(row.hour).padStart(2, '0')}:00`,
+            ? `${generatorMeters[idx % generatorMeters.length]}｜太陽能｜${String(row.hour).padStart(2, '0')}:00`
+            : `發電端｜${String(row.hour).padStart(2, '0')}:00`,
           target: storageAccount,
           value: chargeValue,
         };
@@ -719,13 +719,13 @@ export default function SettlementPreSettlementPage({
     if (sankeyFlowView === 'discharge') {
       const dischargeHours = activeHourlyRows.filter((row) => row.hour >= 16 && row.hour <= 20);
       const loadMeters = ['L-501', 'L-502', 'L-503', 'L-504', 'L-505'];
-      const storageAccount = '????????';
+      const storageAccount = '儲能帳戶（放電）';
       const nodes = [
         { name: storageAccount, itemStyle: { color: '#7c3aed' }, label: { position: 'left' as const } },
         ...dischargeHours.map((row, idx) => ({
           name: showLoadMeterId
-            ? `${loadMeters[idx % loadMeters.length]}?????${String(row.hour).padStart(2, '0')}:00`
-            : `????${String(row.hour).padStart(2, '0')}:00`,
+            ? `${loadMeters[idx % loadMeters.length]}｜用電端｜${String(row.hour).padStart(2, '0')}:00`
+            : `用電端｜${String(row.hour).padStart(2, '0')}:00`,
           itemStyle: { color: '#2563eb' },
           label: { position: 'right' as const },
         })),
@@ -735,8 +735,8 @@ export default function SettlementPreSettlementPage({
         return {
           source: storageAccount,
           target: showLoadMeterId
-            ? `${loadMeters[idx % loadMeters.length]}?????${String(row.hour).padStart(2, '0')}:00`
-            : `????${String(row.hour).padStart(2, '0')}:00`,
+            ? `${loadMeters[idx % loadMeters.length]}｜用電端｜${String(row.hour).padStart(2, '0')}:00`
+            : `用電端｜${String(row.hour).padStart(2, '0')}:00`,
           value: dischargeValue,
         };
       });
@@ -754,31 +754,31 @@ export default function SettlementPreSettlementPage({
 
     const selectedRows = pickRowsByGranularity(activeHourlyRows, effectiveGranularity);
     const generatorMeters = ['G-101', 'G-102', 'G-103', 'G-104', 'G-105', 'G-106'];
-    const generatorResources = ['???', '??', '??', '???', '???', '??'];
+    const generatorResources = ['太陽能', '風力', '水力', '生質能', '太陽能', '風力'];
     const loadMeters = ['L-501', 'L-502', 'L-503', 'L-504', 'L-505', 'L-506'];
     const leftNodes = selectedRows.map((row, idx) =>
       showGeneratorMeterId
-        ? `${generatorMeters[idx % generatorMeters.length]}?${generatorResources[idx % generatorResources.length]}?${String(row.hour).padStart(2, '0')}:00`
-        : `??? ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}?)`
+        ? `${generatorMeters[idx % generatorMeters.length]}｜${generatorResources[idx % generatorResources.length]}｜${String(row.hour).padStart(2, '0')}:00`
+        : `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`
     );
-    const middleContract = 'ECVN????????????';
-    const middleStorage = 'ECVN??????????????';
-    const middleStorageBalance = 'ECVN????????????';
-    const middleSurplus = 'ECVN?????????????';
-    const leftPrevDayStorage = `??????? (${previousDayStorageBalance.toFixed(1)}?)`;
-    const rightContractUser = '??????????';
-    const rightDischargeWindow = '?????? 16:00-20:00';
+    const middleContract = 'ECVN合約與調節帳戶｜合約履行';
+    const middleStorage = 'ECVN合約與調節帳戶｜儲能調節帳戶';
+    const middleStorageBalance = 'ECVN合約與調節帳戶｜儲能餘額';
+    const middleSurplus = 'ECVN合約與調節帳戶｜未履約餘電';
+    const leftPrevDayStorage = `前一天儲能餘額 (${previousDayStorageBalance.toFixed(1)}度)`;
+    const rightContractUser = '合約用戶（匹配成功）';
+    const rightDischargeWindow = '儲能提領時段 16:00-20:00';
     const rightLoadMeterNodes = selectedRows.map((row, idx) =>
       showLoadMeterId
-        ? `${loadMeters[idx % loadMeters.length]}?${String(row.hour).padStart(2, '0')}:00`
-        : `??? ${String(row.hour).padStart(2, '0')}:00`
+        ? `${loadMeters[idx % loadMeters.length]}｜${String(row.hour).padStart(2, '0')}:00`
+        : `用電端 ${String(row.hour).padStart(2, '0')}:00`
     );
     const rightStorageTimeNodes = selectedRows.map(
-      (row) => `?? ${String(row.hour).padStart(2, '0')}:00 (${Math.max(Math.abs(row.storageActual), 0.1).toFixed(1)}?)`
+      (row) => `儲能 ${String(row.hour).padStart(2, '0')}:00 (${Math.max(Math.abs(row.storageActual), 0.1).toFixed(1)}度)`
     );
-    const rightStorageBucket = '???????????24???';
-    const rightStorageBalance = '????';
-    const rightSurplus = '??';
+    const rightStorageBucket = '儲能時段總覽（點擊展開24時段）';
+    const rightStorageBalance = '儲能餘額';
+    const rightSurplus = '餘電';
     const showStorageHours = styleMode === 'ab' || cExpanded;
     const storageHourTargets = showStorageHours ? rightStorageTimeNodes : [rightStorageBucket];
 
@@ -811,8 +811,8 @@ export default function SettlementPreSettlementPage({
 
     selectedRows.forEach((row, index) => {
       const left = showGeneratorMeterId
-        ? `${generatorMeters[index % generatorMeters.length]}?${generatorResources[index % generatorResources.length]}?${String(row.hour).padStart(2, '0')}:00`
-        : `??? ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}?)`;
+        ? `${generatorMeters[index % generatorMeters.length]}｜${generatorResources[index % generatorResources.length]}｜${String(row.hour).padStart(2, '0')}:00`
+        : `發電端 ${String(row.hour).padStart(2, '0')}:00 (${row.generationActual.toFixed(1)}度)`;
       const gen = Math.max(row.generationActual, 0);
       const load = Math.max(row.loadActual, 0);
       const storageDispatch = Math.max(-row.storageActual, 0);
@@ -915,23 +915,23 @@ export default function SettlementPreSettlementPage({
         <section className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h3 className="text-base font-bold text-slate-900">4.1 ?? RE ????????</h3>
+              <h3 className="text-base font-bold text-slate-900">4.1 年度 RE 目標與累計達成率</h3>
               <p className="mt-0.5 max-w-2xl text-xs font-semibold text-slate-600">
-                ???????????????????????????????????
+                先設定統計區間與年度目標，下方指標依區間內累計匹配量與用電量即時計算。
               </p>
             </div>
             {reDataDateSpan.start && reDataDateSpan.end ? (
               <span className="rounded-full border border-indigo-200 bg-white/90 px-2.5 py-1 text-[10px] font-bold text-indigo-800">
-                ???? {reDataDateSpan.start}?{reDataDateSpan.end}
+                資料可用 {reDataDateSpan.start}～{reDataDateSpan.end}
               </span>
             ) : null}
           </div>
 
           <div className="mt-3 rounded-xl border border-slate-200/90 bg-white/95 p-3 shadow-sm">
-            <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">???????</p>
+            <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">區間與目標設定</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
               <div className="lg:col-span-3">
-                <label className="mb-1 block text-[10px] font-bold text-slate-600">??</label>
+                <label className="mb-1 block text-[10px] font-bold text-slate-600">起日</label>
                 <input
                   type="date"
                   value={reCumStart || reDataDateSpan.start}
@@ -942,7 +942,7 @@ export default function SettlementPreSettlementPage({
                 />
               </div>
               <div className="lg:col-span-3">
-                <label className="mb-1 block text-[10px] font-bold text-slate-600">??</label>
+                <label className="mb-1 block text-[10px] font-bold text-slate-600">迄日</label>
                 <input
                   type="date"
                   value={reCumEnd || reDataDateSpan.end}
@@ -953,7 +953,7 @@ export default function SettlementPreSettlementPage({
                 />
               </div>
               <div className="lg:col-span-2">
-                <label className="mb-1 block text-[10px] font-bold text-slate-600">RE ?????%?</label>
+                <label className="mb-1 block text-[10px] font-bold text-slate-600">RE 年度目標（%）</label>
                 <input
                   type="number"
                   min={0}
@@ -973,13 +973,13 @@ export default function SettlementPreSettlementPage({
                   }}
                   className="h-9 flex-1 rounded-md border border-slate-300 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 sm:flex-none"
                 >
-                  ????????
+                  帶入資料全日區間
                 </button>
               </div>
             </div>
             <p className="mt-2 text-[10px] font-semibold text-slate-500">
-              ?????{reRangeStart || '?'}?{reRangeEnd || '?'}
-              {cumulativeReForRange.dayCount > 0 ? ` ? ${cumulativeReForRange.dayCount} ?` : ''}
+              目前統計：{reRangeStart || '—'}～{reRangeEnd || '—'}
+              {cumulativeReForRange.dayCount > 0 ? ` · ${cumulativeReForRange.dayCount} 日` : ''}
             </p>
           </div>
 
@@ -987,7 +987,7 @@ export default function SettlementPreSettlementPage({
             <div className="col-span-2 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-3 shadow-sm lg:col-span-5">
               <p className="text-[11px] font-bold text-emerald-900">
                 <span className="cursor-help border-b border-dotted border-emerald-700" title={reAchievementTooltip}>
-                  RE ?????
+                  RE 累計達成率
                 </span>
               </p>
               <div className="mt-1 flex flex-wrap items-end justify-between gap-2">
@@ -995,7 +995,7 @@ export default function SettlementPreSettlementPage({
                   {cumulativeReForRange.rePct.toFixed(2)}%
                 </p>
                 <p className={`text-xs font-bold ${reVsTargetDiff >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  ???? {reVsTargetDiff >= 0 ? '+' : ''}
+                  與目標差 {reVsTargetDiff >= 0 ? '+' : ''}
                   {reVsTargetDiff.toFixed(2)}%
                 </p>
               </div>
@@ -1005,16 +1005,16 @@ export default function SettlementPreSettlementPage({
                   style={{ width: `${Math.min(100, Math.max(0, cumulativeReForRange.rePct))}%` }}
                 />
               </div>
-              <p className="mt-1 text-[10px] font-semibold text-slate-500">??? {reAnnualTargetPct.toFixed(1)}%</p>
+              <p className="mt-1 text-[10px] font-semibold text-slate-500">目標線 {reAnnualTargetPct.toFixed(1)}%</p>
             </div>
 
             <div className="rounded-xl border border-indigo-200 bg-white px-3 py-2.5 shadow-sm lg:col-span-2">
-              <p className="text-[11px] font-bold text-slate-500">RE ????</p>
+              <p className="text-[11px] font-bold text-slate-500">RE 年度目標</p>
               <p className="mt-0.5 text-2xl font-black tabular-nums text-indigo-800">{reAnnualTargetPct.toFixed(1)}%</p>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm lg:col-span-2">
-              <p className="text-[11px] font-bold text-slate-500">???????</p>
+              <p className="text-[11px] font-bold text-slate-500">累計成功匹配量</p>
               <p className="mt-0.5 text-xl font-black tabular-nums text-slate-900">
                 {cumulativeReForRange.sumMatched.toFixed(1)}
               </p>
@@ -1022,11 +1022,11 @@ export default function SettlementPreSettlementPage({
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm lg:col-span-3">
-              <p className="text-[11px] font-bold text-slate-500">?????</p>
+              <p className="text-[11px] font-bold text-slate-500">累計用電量</p>
               <p className="mt-0.5 text-xl font-black tabular-nums text-slate-900">
                 {cumulativeReForRange.sumLoad.toFixed(1)}
               </p>
-              <p className="text-[10px] font-semibold text-slate-500">kWh ? ?? {cumulativeReForRange.dayCount} ?</p>
+              <p className="text-[10px] font-semibold text-slate-500">kWh · 區間 {cumulativeReForRange.dayCount} 日</p>
             </div>
           </div>
 
@@ -1044,15 +1044,15 @@ export default function SettlementPreSettlementPage({
         <h3 className="text-lg font-bold text-slate-900">{pageHeading}</h3>
         <div className="mb-5 mt-4 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm">
           <p className="mb-2 text-sm font-black text-slate-900">
-            ???????????????????? 15 ??????????
+            桑基匹配明細表（依年度彙總；可下鑽至日與 15 分鐘並編輯示範數值）
           </p>
           <p className="mb-3 text-xs font-semibold text-slate-600">
-            ????????????????????????????????????????? 15
-            ????????????????????????????????????????????????????? G1?G5?L1?L5 ????????
+            選擇年度後，已結算月份可點選；未結算月份為灰色。由【詳細資料】進入每日明細，再進入 15
+            分鐘可編輯量測值並填寫原因；異常以紅色標示，廠商確認後改為綠色。表格數值與上方桑基圖節點／連線可點擊，開啟 G1～G5、L1～L5 與流向組成明細。
           </p>
           <div className="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-600">????</label>
+              <label className="mb-1 block text-[10px] font-bold text-slate-600">資料年度</label>
               <select
                 value={sankeyExplorerYear}
                 onChange={(e) => {
@@ -1065,13 +1065,13 @@ export default function SettlementPreSettlementPage({
               >
                 {sankeyExplorerYearOptions.map((y) => (
                   <option key={y} value={y}>
-                    {y} ?
+                    {y} 年
                   </option>
                 ))}
               </select>
             </div>
             <div className="flex flex-1 flex-wrap gap-2">
-              <span className="w-full text-[10px] font-bold text-slate-600">?????????</span>
+              <span className="w-full text-[10px] font-bold text-slate-600">月份（已結算可點）</span>
               <div className="flex w-full flex-wrap gap-1.5">
                 {sankeyMonthlyRowsForYear.map(({ month, label, selectable }) => (
                   <button
@@ -1117,7 +1117,7 @@ export default function SettlementPreSettlementPage({
                   }}
                   className={SANKEY_BACK_BTN}
                 >
-                  ? ????
+                  ← 返回每日
                 </button>
               ) : null}
               {sankeyExplorerView === 'daily' || sankeyExplorerView === 'quarter' ? (
@@ -1130,24 +1130,24 @@ export default function SettlementPreSettlementPage({
                   }}
                   className={SANKEY_BACK_BTN}
                 >
-                  ? ????
+                  ← 返回年度
                 </button>
               ) : null}
               {sankeyExplorerView === 'year' || sankeyExplorerView === 'daily' ? (
                 <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                  <span className="whitespace-nowrap">??</span>
+                  <span className="whitespace-nowrap">排序</span>
                   <select
                     value={sankeyExplorerSort}
                     onChange={(e) => setSankeyExplorerSort(e.target.value as SankeyExplorerSort)}
                     className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800"
                   >
-                    <option value="desc">?? ???</option>
-                    <option value="asc">?? ???</option>
+                    <option value="desc">日期 新→舊</option>
+                    <option value="asc">日期 舊→新</option>
                   </select>
                 </label>
               ) : null}
               {sankeyExplorerView === 'quarter' && sankeyExplorerDay ? (
-                <span className="text-xs font-bold text-slate-600">15 ?? ? {sankeyExplorerDay}</span>
+                <span className="text-xs font-bold text-slate-600">15 分鐘 · {sankeyExplorerDay}</span>
               ) : null}
             </div>
           </div>
@@ -1167,9 +1167,9 @@ export default function SettlementPreSettlementPage({
               <table className="min-w-full text-sm">
                 <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
                   <tr>
-                    <th className="px-3 py-2 text-left font-bold">??</th>
-                    <th className="px-3 py-2 text-right font-bold">???</th>
-                    <th className="px-3 py-2 text-right font-bold">???</th>
+                    <th className="px-3 py-2 text-left font-bold">月份</th>
+                    <th className="px-3 py-2 text-right font-bold">發電端</th>
+                    <th className="px-3 py-2 text-right font-bold">用電端</th>
                     <th className="px-3 py-2 text-right font-bold">
                       <button
                         type="button"
@@ -1183,7 +1183,7 @@ export default function SettlementPreSettlementPage({
                           }
                         }}
                       >
-                        ????(+)
+                        儲能存入(+)
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right font-bold">
@@ -1199,13 +1199,13 @@ export default function SettlementPreSettlementPage({
                           }
                         }}
                       >
-                        ????(-)
+                        儲能提領(-)
                       </button>
                     </th>
-                    <th className="px-3 py-2 text-right font-bold">????(?)</th>
-                    <th className="px-3 py-2 text-right font-bold text-blue-700">?????</th>
-                    <th className="px-3 py-2 text-right font-bold text-blue-700">????</th>
-                    <th className="px-3 py-2 text-center font-bold">??</th>
+                    <th className="px-3 py-2 text-right font-bold">儲能餘額(∑)</th>
+                    <th className="px-3 py-2 text-right font-bold text-blue-700">合約匹配量</th>
+                    <th className="px-3 py-2 text-right font-bold text-blue-700">總匹配量</th>
+                    <th className="px-3 py-2 text-center font-bold">操作</th>
                   </tr>
                 </thead>
                 <tbody className="text-slate-900">
@@ -1232,7 +1232,7 @@ export default function SettlementPreSettlementPage({
                               openPeriodMetric(
                                 'generation',
                                 monthDateLabels(month),
-                                `${sankeyExplorerYear} ? ${label}`
+                                `${sankeyExplorerYear} 年 ${label}`
                               )
                             }
                           />
@@ -1242,7 +1242,7 @@ export default function SettlementPreSettlementPage({
                             value={z.load}
                             decimals={1}
                             onClick={() =>
-                              openPeriodMetric('load', monthDateLabels(month), `${sankeyExplorerYear} ? ${label}`)
+                              openPeriodMetric('load', monthDateLabels(month), `${sankeyExplorerYear} 年 ${label}`)
                             }
                           />
                         </td>
@@ -1285,7 +1285,7 @@ export default function SettlementPreSettlementPage({
                             value={z.storageBalance}
                             decimals={1}
                             onClick={() =>
-                              openPeriodMetric('balance', monthDateLabels(month), `${sankeyExplorerYear} ? ${label}`)
+                              openPeriodMetric('balance', monthDateLabels(month), `${sankeyExplorerYear} 年 ${label}`)
                             }
                           />
                         </td>
@@ -1295,7 +1295,7 @@ export default function SettlementPreSettlementPage({
                             decimals={1}
                             className="text-blue-700"
                             onClick={() =>
-                              openPeriodMetric('contract', monthDateLabels(month), `${sankeyExplorerYear} ? ${label}`)
+                              openPeriodMetric('contract', monthDateLabels(month), `${sankeyExplorerYear} 年 ${label}`)
                             }
                           />
                         </td>
@@ -1305,7 +1305,7 @@ export default function SettlementPreSettlementPage({
                             decimals={1}
                             className="text-blue-700"
                             onClick={() =>
-                              openPeriodMetric('total', monthDateLabels(month), `${sankeyExplorerYear} ? ${label}`)
+                              openPeriodMetric('total', monthDateLabels(month), `${sankeyExplorerYear} 年 ${label}`)
                             }
                           />
                         </td>
@@ -1325,7 +1325,7 @@ export default function SettlementPreSettlementPage({
                                 : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
                             }`}
                           >
-                            ????
+                            詳細資料
                           </button>
                         </td>
                       </tr>
@@ -1338,24 +1338,24 @@ export default function SettlementPreSettlementPage({
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
                     <tr>
-                      <th className="px-3 py-2 text-left font-bold">??</th>
-                      <th className="px-3 py-2 text-right font-bold">???</th>
-                      <th className="px-3 py-2 text-right font-bold">???</th>
-                      <th className="px-3 py-2 text-right font-bold">????(+)</th>
-                      <th className="px-3 py-2 text-right font-bold">????(-)</th>
-                      <th className="px-3 py-2 text-right font-bold">????(?)</th>
-                      <th className="px-3 py-2 text-right font-bold text-blue-700">?????</th>
-                      <th className="px-3 py-2 text-right font-bold text-blue-700">????</th>
-                      <th className="px-3 py-2 text-center font-bold">??</th>
-                      <th className="px-3 py-2 text-center font-bold">????</th>
-                      <th className="px-3 py-2 text-center font-bold">????</th>
+                      <th className="px-3 py-2 text-left font-bold">日期</th>
+                      <th className="px-3 py-2 text-right font-bold">發電端</th>
+                      <th className="px-3 py-2 text-right font-bold">用電端</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能存入(+)</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能提領(-)</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能餘額(∑)</th>
+                      <th className="px-3 py-2 text-right font-bold text-blue-700">合約匹配量</th>
+                      <th className="px-3 py-2 text-right font-bold text-blue-700">總匹配量</th>
+                      <th className="px-3 py-2 text-center font-bold">註記</th>
+                      <th className="px-3 py-2 text-center font-bold">取消註記</th>
+                      <th className="px-3 py-2 text-center font-bold">詳細資料</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sankeyDailyRowsForExplorer.length === 0 ? (
                       <tr>
                         <td colSpan={11} className="px-3 py-6 text-center text-sm font-semibold text-slate-500">
-                          ?????????????????????????
+                          本月示範資料尚無列；可換選有資料的月份或調整年度。
                         </td>
                       </tr>
                     ) : (
@@ -1420,7 +1420,7 @@ export default function SettlementPreSettlementPage({
                               onClick={() => setNotedDays((p) => ({ ...p, [row.dateLabel]: true }))}
                               className="rounded border border-amber-400 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900 disabled:opacity-40"
                             >
-                              ??
+                              註記
                             </button>
                           </td>
                           <td className="px-3 py-2 text-center">
@@ -1436,7 +1436,7 @@ export default function SettlementPreSettlementPage({
                               }
                               className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-700 disabled:opacity-40"
                             >
-                              ????
+                              取消註記
                             </button>
                           </td>
                           <td className="px-3 py-2 text-center">
@@ -1448,7 +1448,7 @@ export default function SettlementPreSettlementPage({
                               }}
                               className="rounded-md border border-blue-600 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-800 hover:bg-blue-100"
                             >
-                              ????
+                              詳細資料
                             </button>
                           </td>
                         </tr>
@@ -1472,15 +1472,15 @@ export default function SettlementPreSettlementPage({
                   </colgroup>
                   <thead className="sticky top-0 z-[1] bg-slate-100 text-slate-900">
                     <tr>
-                      <th className="px-3 py-2 text-left font-bold">??</th>
-                      <th className="px-3 py-2 text-right font-bold">???(??)</th>
-                      <th className="px-3 py-2 text-right font-bold">???(??)</th>
-                      <th className="px-3 py-2 text-right font-bold">??(+)</th>
-                      <th className="px-3 py-2 text-right font-bold">??(-)</th>
-                      <th className="px-3 py-2 text-right font-bold">????(?)</th>
-                      <th className="px-3 py-2 text-right font-bold text-blue-700">????</th>
-                      <th className="px-3 py-2 text-right font-bold text-blue-700">???</th>
-                      <th className="px-3 py-2 text-center font-bold">??</th>
+                      <th className="px-3 py-2 text-left font-bold">時間</th>
+                      <th className="px-3 py-2 text-right font-bold">發電端(量測)</th>
+                      <th className="px-3 py-2 text-right font-bold">用電端(量測)</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能(+)</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能(-)</th>
+                      <th className="px-3 py-2 text-right font-bold">儲能餘額(∑)</th>
+                      <th className="px-3 py-2 text-right font-bold text-blue-700">合約匹配</th>
+                      <th className="px-3 py-2 text-right font-bold text-blue-700">總匹配</th>
+                      <th className="px-3 py-2 text-center font-bold">操作</th>
                     </tr>
                   </thead>
                   <tbody className="text-slate-900">
@@ -1624,7 +1624,7 @@ export default function SettlementPreSettlementPage({
                                   })
                                 }
                               >
-                                ??
+                                編輯
                               </button>
                               <button
                                 type="button"
@@ -1638,7 +1638,7 @@ export default function SettlementPreSettlementPage({
                                   }))
                                 }
                               >
-                                {slotVendorOk[sk] ? '???' : '????'}
+                                {slotVendorOk[sk] ? '已確認' : '廠商確認'}
                               </button>
                             </div>
                           </td>
@@ -1651,15 +1651,15 @@ export default function SettlementPreSettlementPage({
             </div>
           </div>
           <p className="mt-2 text-xs font-semibold text-slate-700">
-            ????????15 ?????????????????????????????????????????????????????????????????????????
+            表格可捲動檢視。15 分鐘層級僅【編輯】可一次調整發電、用電、儲能量測並填寫一筆原因；異常數值以紅色標示，點【廠商確認】後改為綠色並顯示灰色【已確認】，再點一次可還原。
           </p>
           <Dialog open={editTarget !== null} onOpenChange={(o) => !o && setEditTarget(null)}>
             <DialogContent className="border-slate-200 bg-white text-slate-900 shadow-xl sm:max-w-md [&_[data-slot=dialog-close]]:text-slate-600">
               <DialogHeader>
-                <DialogTitle className="text-slate-900">?? 15 ?????</DialogTitle>
+                <DialogTitle className="text-slate-900">修改 15 分鐘量測值</DialogTitle>
                 <DialogDescription className="text-slate-600">
                   {editTarget
-                    ? `?? ${editTarget.timeLabel}???????????????????????????????????? Enter??????? Enter ???????`
+                    ? `時段 ${editTarget.timeLabel}：可一次調整發電、用電與儲能量測，並填寫一筆修改原因（必填）。在數值欄按 Enter、或在原因欄按 Enter 皆可完成送出。`
                     : ''}
                 </DialogDescription>
               </DialogHeader>
@@ -1673,9 +1673,9 @@ export default function SettlementPreSettlementPage({
                 >
                   <div>
                     <label className="text-xs font-bold text-slate-600">
-                      ???????kWh?
+                      發電端（量測，kWh）
                       <span className="ml-1 font-normal text-slate-500">
-                        ?? {editTarget.generationOriginal.toFixed(3)}
+                        原始 {editTarget.generationOriginal.toFixed(3)}
                       </span>
                     </label>
                     <Input
@@ -1690,9 +1690,9 @@ export default function SettlementPreSettlementPage({
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600">
-                      ???????kWh?
+                      用電端（量測，kWh）
                       <span className="ml-1 font-normal text-slate-500">
-                        ?? {editTarget.loadOriginal.toFixed(3)}
+                        原始 {editTarget.loadOriginal.toFixed(3)}
                       </span>
                     </label>
                     <Input
@@ -1705,9 +1705,9 @@ export default function SettlementPreSettlementPage({
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600">
-                      ??????kWh???????????
+                      儲能（量測，kWh；正值存入、負值提領）
                       <span className="ml-1 font-normal text-slate-500">
-                        ?? {editTarget.storageOriginal.toFixed(3)}
+                        原始 {editTarget.storageOriginal.toFixed(3)}
                       </span>
                     </label>
                     <Input
@@ -1722,7 +1722,7 @@ export default function SettlementPreSettlementPage({
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-600">
-                      ?????????<span className="text-rose-600">*</span>
+                      修改原因（追溯用）<span className="text-rose-600">*</span>
                     </label>
                     <textarea
                       required
@@ -1735,7 +1735,7 @@ export default function SettlementPreSettlementPage({
                           commitSlotEdit();
                         }
                       }}
-                      placeholder="???????????Enter ???Shift+Enter ???"
+                      placeholder="請說明本次調整原因…（Enter 送出、Shift+Enter 換行）"
                     />
                   </div>
                   <DialogFooter className="gap-2 border-t border-slate-200 pt-3 sm:justify-end">
@@ -1745,10 +1745,10 @@ export default function SettlementPreSettlementPage({
                       className="border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                       onClick={() => setEditTarget(null)}
                     >
-                      ??
+                      取消
                     </Button>
                     <Button type="submit" className="bg-indigo-600 text-white hover:bg-indigo-700">
-                      ??
+                      完成
                     </Button>
                   </DialogFooter>
                 </form>
@@ -1759,34 +1759,34 @@ export default function SettlementPreSettlementPage({
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900">?????? / ?????</h3>
+        <h3 className="text-lg font-bold text-slate-900">預結算分配量 / 轉移成功量</h3>
         <section className="mt-6 rounded-2xl border border-slate-300 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-          <h4 className="text-base font-bold text-slate-900">?????????????????? RE</h4>
+          <h4 className="text-base font-bold text-slate-900">實際發電與實際用電｜失衡累積與匹配率 RE</h4>
           <p className="mt-1 text-xs font-semibold text-slate-600">
-            ??????????? 15 ?????????????????????????????????????????????????????RE
-            ? ?????????? ? ???????? RE ?????????????????????? RE ???????
+            「多估計／少估計」為以 15 分鐘加總之實際發電與實際用電比較：實發高於實載列為多估計（盈餘電量），實載高於實發列為少估計（缺口電量）。RE
+            ＝ 各時段轉移成功量加總 ÷ 用電量加總（預計 RE 僅用規劃量計算匹配、用電規劃加總為分母；實際 RE 用即時量測）。
           </p>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-amber-200 bg-white px-3 py-3">
-              <p className="text-[11px] font-bold text-amber-800">?????? &gt; ????? kWh?</p>
+              <p className="text-[11px] font-bold text-amber-800">多估計（實發 &gt; 實載，累積 kWh）</p>
               <p className="mt-1 text-xl font-black tabular-nums text-amber-900">{preSettlementReMetrics.surplusGenVsLoad.toFixed(1)}</p>
             </div>
             <div className="rounded-xl border border-rose-200 bg-white px-3 py-3">
-              <p className="text-[11px] font-bold text-rose-800">?????? &gt; ????? kWh?</p>
+              <p className="text-[11px] font-bold text-rose-800">少估計（實載 &gt; 實發，累積 kWh）</p>
               <p className="mt-1 text-xl font-black tabular-nums text-rose-900">{preSettlementReMetrics.shortfallGenVsLoad.toFixed(1)}</p>
             </div>
             <div className="rounded-xl border border-indigo-200 bg-white px-3 py-3">
-              <p className="text-[11px] font-bold text-indigo-800">?? RE??????</p>
+              <p className="text-[11px] font-bold text-indigo-800">預計 RE（僅規劃量）</p>
               <p className="mt-1 text-2xl font-black tabular-nums text-indigo-900">{preSettlementReMetrics.rePlanPct.toFixed(2)}%</p>
               <p className="mt-1 text-[10px] font-semibold text-slate-500">
-                ?? {preSettlementReMetrics.sumTransferredPlan.toFixed(1)} ? ?? {preSettlementReMetrics.totalLoadPlan.toFixed(1)} kWh
+                分子 {preSettlementReMetrics.sumTransferredPlan.toFixed(1)} ÷ 分母 {preSettlementReMetrics.totalLoadPlan.toFixed(1)} kWh
               </p>
             </div>
             <div className="rounded-xl border border-emerald-200 bg-white px-3 py-3">
-              <p className="text-[11px] font-bold text-emerald-800">?? RE??????</p>
+              <p className="text-[11px] font-bold text-emerald-800">實際 RE（即時量測）</p>
               <p className="mt-1 text-2xl font-black tabular-nums text-emerald-900">{preSettlementReMetrics.reActualPct.toFixed(2)}%</p>
               <p className="mt-1 text-[10px] font-semibold text-slate-500">
-                ?? {preSettlementReMetrics.sumTransferredActual.toFixed(1)} ? ?? {preSettlementReMetrics.totalLoadActual.toFixed(1)} kWh
+                分子 {preSettlementReMetrics.sumTransferredActual.toFixed(1)} ÷ 分母 {preSettlementReMetrics.totalLoadActual.toFixed(1)} kWh
               </p>
             </div>
           </div>
@@ -1794,26 +1794,26 @@ export default function SettlementPreSettlementPage({
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900">???????????? vs ?????</h3>
+        <h3 className="text-lg font-bold text-slate-900">儲能預結算一致性（計畫量 vs 實際運轉）</h3>
         <p className="mt-1 text-xs font-semibold text-slate-800">
-          ??????????????????????????? 15 ?????????????????
+          計畫量對應申報計畫數值；比對實際運轉是否一致。展開後為 15 分鐘粒度（與預結算區塊同日資料）。
         </p>
         <button
           type="button"
           onClick={() => setShowStorageTable((v) => !v)}
           className="mt-4 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-800"
         >
-          {showStorageTable ? '??????' : '??????'}
+          {showStorageTable ? '收合詳細表格' : '展開詳細表格'}
         </button>
         {showStorageTable && <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-sm">
             <thead className="bg-slate-100 text-slate-900">
               <tr>
-                <th className="px-3 py-2 text-left font-bold">??</th>
-                <th className="px-3 py-2 text-right font-bold">???(kWh)</th>
-                <th className="px-3 py-2 text-right font-bold">????(kWh)</th>
-                <th className="px-3 py-2 text-right font-bold">??(kWh)</th>
-                <th className="px-3 py-2 text-center font-bold">???</th>
+                <th className="px-3 py-2 text-left font-bold">時間</th>
+                <th className="px-3 py-2 text-right font-bold">計畫量(kWh)</th>
+                <th className="px-3 py-2 text-right font-bold">實際運轉(kWh)</th>
+                <th className="px-3 py-2 text-right font-bold">差異(kWh)</th>
+                <th className="px-3 py-2 text-center font-bold">一致性</th>
               </tr>
             </thead>
             <tbody className="text-slate-900">
@@ -1825,7 +1825,7 @@ export default function SettlementPreSettlementPage({
                   <td className={`px-3 py-2 text-right tabular-nums ${r.delta === 0 ? 'text-slate-700' : r.delta > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{r.delta.toFixed(3)}</td>
                   <td className="px-3 py-2 text-center">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${r.consistent ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {r.consistent ? '??' : '???'}
+                      {r.consistent ? '一致' : '需調整'}
                     </span>
                   </td>
                 </tr>
@@ -1837,7 +1837,7 @@ export default function SettlementPreSettlementPage({
       <SankeyDetailDialog focus={detailFocus} onClose={() => setDetailFocus(null)} />
       {saveToast ? (
         <div className="fixed bottom-8 left-1/2 z-[70] -translate-x-1/2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-xl">
-          ????
+          修改成功
         </div>
       ) : null}
     </div>

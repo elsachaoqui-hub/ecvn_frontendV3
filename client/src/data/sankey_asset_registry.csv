@@ -1,4 +1,4 @@
-asset_id,asset_type,resource_type,site_name,capacity_kw
+﻿asset_id,asset_type,resource_type,site_name,capacity_kw
 G1,generation,太陽能,甲案 PV-A,520
 G2,generation,太陽能,乙案 PV-B,480
 G3,generation,風力,離岸風場 A,600
