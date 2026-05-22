@@ -43,7 +43,7 @@ function MainContent() {
           {currentView === 'declaration-plan' && <DeclarationPlanPage />}
           {currentView === 'checking-daily' && <DailyCheckingPage />}
           {currentView === 'checking-monthly' && <MonthlyCheckingPage />}
-          {currentView === 'settlement-pre' && <SettlementPreSettlementPage />}
+          {currentView === 'settlement-pre' && <SettlementPreSettlementPage variant="pre" />}
           {currentView === 'settlement-monthly' && <SettlementMonthlyPage />}
           {currentView === 'web-settings' && <WebSettingsPage />}
         </main>

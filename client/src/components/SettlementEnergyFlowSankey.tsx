@@ -99,6 +99,8 @@ type SettlementEnergyFlowSankeyProps = {
   aggregate: EnergyFlowAggregate;
   flowLinks?: SankeyChartLink[];
   embedded?: boolean;
+  /** 區塊標題（5.1 預結算 / 5.2 月結算） */
+  title?: string;
   onSankeyInteraction?: (payload: SankeyClickPayload) => void;
 };
 
@@ -107,6 +109,7 @@ export default function SettlementEnergyFlowSankey({
   aggregate,
   flowLinks,
   embedded = false,
+  title = '5.2 結算｜能源流動總覽（桑基）',
   onSankeyInteraction,
 }: SettlementEnergyFlowSankeyProps) {
   const { chartFonts } = useUiFont();
@@ -232,7 +235,7 @@ export default function SettlementEnergyFlowSankey({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-bold text-slate-900">5.2 結算｜能源流動總覽（桑基）</h3>
+          <h3 className="text-lg font-bold text-slate-900">{title}</h3>
           <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-600">
             依下方明細表下鑽層級自動切換：<strong>{drillTitle}</strong>（{aggregate.periodLabel}，共{' '}
             {aggregate.dayCount} 日）。

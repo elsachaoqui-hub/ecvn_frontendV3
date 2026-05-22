@@ -120,7 +120,34 @@ type SankeyStyleMode = 'ab' | 'c';
 type SankeyGranularity = 'summary4h' | 'detail24h';
 type SankeyFlowView = 'main' | 'charge' | 'discharge';
 
+export type SettlementPageVariant = 'pre' | 'monthly';
+
+const SETTLEMENT_VARIANT_META: Record<
+  SettlementPageVariant,
+  {
+    pageHeading: string;
+    reSectionTitle: string;
+    settlementTerm: string;
+    sankeyTitle: string;
+  }
+> = {
+  pre: {
+    pageHeading: '5.1 預結算 - 桑基匹配圖',
+    reSectionTitle: '5.1 年度 RE 目標與累計達成率',
+    settlementTerm: '預結算',
+    sankeyTitle: '5.1 預結算｜能源流動總覽（桑基）',
+  },
+  monthly: {
+    pageHeading: '5.2 月結算 - 桑基匹配圖',
+    reSectionTitle: '5.2 年度 RE 目標與累計達成率',
+    settlementTerm: '月結算',
+    sankeyTitle: '5.2 月結算｜能源流動總覽（桑基）',
+  },
+};
+
 interface SettlementPreSettlementPageProps {
+  /** 5.1 預結算 / 5.2 月結算（共用同一套畫面，僅標題用語不同） */
+  variant?: SettlementPageVariant;
   pageHeading?: string;
   defaultStyleMode?: SankeyStyleMode;
 }
@@ -164,6 +191,10 @@ const SANKEY_VENDOR_CONFIRMED_BTN =
 
 const SANKEY_METRIC_CELL_BTN =
   'cursor-pointer tabular-nums underline-offset-2 hover:text-indigo-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
+
+/** 桑基明細／編輯彈窗：寬度約為原 sm:max-w-md / sm:max-w-2xl 的兩倍 */
+const SANKEY_MODAL_WIDE =
+  'w-[min(96vw,64rem)] max-w-[calc(100%-2rem)] sm:max-w-5xl [&_[data-slot=dialog-close]]:text-slate-600';
 
 function SankeyMetricButton({
   value,
@@ -293,9 +324,13 @@ function sumSankeyDetailRows(rows: SankeyDetailDayRow[]): Omit<EnergyFlowAggrega
 }
 
 export default function SettlementPreSettlementPage({
-  pageHeading = '4.1 預結算 - 桑基匹配圖',
+  variant = 'pre',
+  pageHeading: pageHeadingProp,
   defaultStyleMode = 'ab',
 }: SettlementPreSettlementPageProps) {
+  const variantMeta = SETTLEMENT_VARIANT_META[variant];
+  const pageHeading = pageHeadingProp ?? variantMeta.pageHeading;
+  const { reSectionTitle, settlementTerm, sankeyTitle } = variantMeta;
   const { chartFonts } = useUiFont();
   const chartDateLabel = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const hourlyRows = useMemo(() => buildHourlyRowsByDate(chartDateLabel), [chartDateLabel]);
@@ -608,10 +643,12 @@ export default function SettlementPreSettlementPage({
     timeLabel: string;
     generationOriginal: number;
     loadOriginal: number;
-    storageOriginal: number;
+    storageChargeOriginal: number;
+    storageDischargeOriginal: number;
     draftGeneration: string;
     draftLoad: string;
-    draftStorage: string;
+    draftStorageCharge: string;
+    draftStorageDischarge: string;
     reason: string;
   } | null>(null);
   const [saveToast, setSaveToast] = useState(false);
@@ -702,14 +739,19 @@ export default function SettlementPreSettlementPage({
     }
     const generationActual = Number(editTarget.draftGeneration);
     const loadActual = Number(editTarget.draftLoad);
-    const storageActual = Number(editTarget.draftStorage);
+    const storageCharge = Number(editTarget.draftStorageCharge);
+    const storageDischarge = Number(editTarget.draftStorageDischarge);
     if (
       !Number.isFinite(generationActual) ||
       !Number.isFinite(loadActual) ||
-      !Number.isFinite(storageActual)
+      !Number.isFinite(storageCharge) ||
+      !Number.isFinite(storageDischarge) ||
+      storageCharge < 0 ||
+      storageDischarge < 0
     ) {
       return;
     }
+    const storageActual = Number((storageCharge - storageDischarge).toFixed(3));
     setSlotOverrides((prev) => ({
       ...prev,
       [editTarget.slotKey]: {
@@ -1045,11 +1087,10 @@ export default function SettlementPreSettlementPage({
 
   return (
     <div className="space-y-6 pb-8 text-slate-800">
-      {pageHeading.startsWith('4.1') ? (
-        <section className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-white p-4 shadow-sm sm:p-5">
+      <section className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/80 to-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h3 className="text-base font-bold text-slate-900">5.1 年度 RE 目標與累計達成率</h3>
+              <h3 className="text-base font-bold text-slate-900">{reSectionTitle}</h3>
               <p className="mt-0.5 max-w-2xl text-xs font-semibold text-slate-600">
                 先設定統計區間與年度目標，下方指標依區間內累計匹配量與用電量即時計算。
               </p>
@@ -1169,10 +1210,10 @@ export default function SettlementPreSettlementPage({
             aggregate={energyFlowAggregate}
             flowLinks={sankeyFlowLinks}
             embedded
+            title={sankeyTitle}
             onSankeyInteraction={handleSankeyInteraction}
           />
         </section>
-      ) : null}
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-bold text-slate-900">{pageHeading}</h3>
@@ -1816,10 +1857,12 @@ export default function SettlementPreSettlementPage({
                                     timeLabel: line.row.timeLabel,
                                     generationOriginal: gen0,
                                     loadOriginal: load0,
-                                    storageOriginal: storage0,
+                                    storageChargeOriginal: Math.max(storage0, 0),
+                                    storageDischargeOriginal: Math.max(-storage0, 0),
                                     draftGeneration: String(gen),
                                     draftLoad: String(load),
-                                    draftStorage: String(line.row.storageActual),
+                                    draftStorageCharge: String(line.stIn),
+                                    draftStorageDischarge: String(line.stOut),
                                     reason: ovr.reason ?? '',
                                   })
                                 }
@@ -1851,28 +1894,30 @@ export default function SettlementPreSettlementPage({
             </div>
           </div>
           <p className="mt-2 text-xs font-semibold text-slate-700">
-            表格可捲動檢視。15 分鐘層級僅【編輯】可一次調整發電、用電、儲能量測並填寫一筆原因；異常數值以紅色標示，點【廠商確認】後改為綠色並顯示灰色【已確認】，再點一次可還原。
+            表格可捲動檢視。15 分鐘層級【編輯】可分別調整發電、用電、儲能存入(+)與儲能提領(-)，並填寫一筆原因；異常數值以紅色標示，點【廠商確認】後改為綠色並顯示灰色【已確認】，再點一次可還原。
           </p>
           <Dialog open={editTarget !== null} onOpenChange={(o) => !o && setEditTarget(null)}>
-            <DialogContent className="border-slate-200 bg-white text-slate-900 shadow-xl sm:max-w-md [&_[data-slot=dialog-close]]:text-slate-600">
+            <DialogContent
+              className={`max-h-[90vh] overflow-y-auto border-slate-200 bg-white text-slate-900 shadow-xl ${SANKEY_MODAL_WIDE}`}
+            >
               <DialogHeader>
-                <DialogTitle className="text-slate-900">修改 15 分鐘量測值</DialogTitle>
-                <DialogDescription className="text-slate-600">
+                <DialogTitle className="text-lg text-slate-900">修改 15 分鐘量測值</DialogTitle>
+                <DialogDescription className="text-sm text-slate-600">
                   {editTarget
-                    ? `時段 ${editTarget.timeLabel}：可一次調整發電、用電與儲能量測，並填寫一筆修改原因（必填）。在數值欄按 Enter、或在原因欄按 Enter 皆可完成送出。`
+                    ? `時段 ${editTarget.timeLabel}：可分別調整發電、用電、儲能存入(+)與儲能提領(-)（kWh，皆≥0），淨儲能＝存入－提領；修改原因必填。在數值欄按 Enter、或在原因欄按 Enter 皆可完成送出。`
                     : ''}
                 </DialogDescription>
               </DialogHeader>
               {editTarget ? (
                 <form
-                  className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3"
+                  className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 sm:grid-cols-2"
                   onSubmit={(e) => {
                     e.preventDefault();
                     commitSlotEdit();
                   }}
                 >
                   <div>
-                    <label className="text-xs font-bold text-slate-600">
+                    <label className="text-sm font-bold text-slate-600">
                       發電端（量測，kWh）
                       <span className="ml-1 font-normal text-slate-500">
                         原始 {editTarget.generationOriginal.toFixed(3)}
@@ -1885,11 +1930,11 @@ export default function SettlementPreSettlementPage({
                       onChange={(e) =>
                         setEditTarget((t) => (t ? { ...t, draftGeneration: e.target.value } : t))
                       }
-                      className="mt-1 border-slate-300 bg-white text-slate-900"
+                      className="mt-1 h-10 border-slate-300 bg-white text-base text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600">
+                    <label className="text-sm font-bold text-slate-600">
                       用電端（量測，kWh）
                       <span className="ml-1 font-normal text-slate-500">
                         原始 {editTarget.loadOriginal.toFixed(3)}
@@ -1900,33 +1945,64 @@ export default function SettlementPreSettlementPage({
                       step="0.001"
                       value={editTarget.draftLoad}
                       onChange={(e) => setEditTarget((t) => (t ? { ...t, draftLoad: e.target.value } : t))}
-                      className="mt-1 border-slate-300 bg-white text-slate-900"
+                      className="mt-1 h-10 border-slate-300 bg-white text-base text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600">
-                      儲能（量測，kWh；正值存入、負值提領）
+                    <label className="text-sm font-bold text-emerald-800">
+                      儲能存入（+，kWh）
                       <span className="ml-1 font-normal text-slate-500">
-                        原始 {editTarget.storageOriginal.toFixed(3)}
+                        原始 {editTarget.storageChargeOriginal.toFixed(3)}
                       </span>
                     </label>
                     <Input
                       type="number"
+                      min={0}
                       step="0.001"
-                      value={editTarget.draftStorage}
+                      value={editTarget.draftStorageCharge}
                       onChange={(e) =>
-                        setEditTarget((t) => (t ? { ...t, draftStorage: e.target.value } : t))
+                        setEditTarget((t) => (t ? { ...t, draftStorageCharge: e.target.value } : t))
                       }
-                      className="mt-1 border-slate-300 bg-white text-slate-900"
+                      className="mt-1 h-10 border-emerald-300 bg-white text-base text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600">
+                    <label className="text-sm font-bold text-violet-800">
+                      儲能提領（-，kWh）
+                      <span className="ml-1 font-normal text-slate-500">
+                        原始 {editTarget.storageDischargeOriginal.toFixed(3)}
+                      </span>
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.001"
+                      value={editTarget.draftStorageDischarge}
+                      onChange={(e) =>
+                        setEditTarget((t) => (t ? { ...t, draftStorageDischarge: e.target.value } : t))
+                      }
+                      className="mt-1 h-10 border-violet-300 bg-white text-base text-slate-900"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs font-semibold text-slate-500">
+                      淨儲能量測（存入－提領）：{' '}
+                      <span className="tabular-nums font-bold text-slate-800">
+                        {(
+                          Number(editTarget.draftStorageCharge || 0) -
+                          Number(editTarget.draftStorageDischarge || 0)
+                        ).toFixed(3)}{' '}
+                        kWh
+                      </span>
+                    </p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-sm font-bold text-slate-600">
                       修改原因（追溯用）<span className="text-rose-600">*</span>
                     </label>
                     <textarea
                       required
-                      className="mt-1 min-h-[72px] w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900"
+                      className="mt-1 min-h-[88px] w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900"
                       value={editTarget.reason}
                       onChange={(e) => setEditTarget((t) => (t ? { ...t, reason: e.target.value } : t))}
                       onKeyDown={(e) => {
@@ -1959,7 +2035,7 @@ export default function SettlementPreSettlementPage({
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900">預結算分配量 / 轉移成功量</h3>
+        <h3 className="text-lg font-bold text-slate-900">{settlementTerm}分配量 / 轉移成功量</h3>
         <section className="mt-6 rounded-2xl border border-slate-300 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
           <h4 className="text-base font-bold text-slate-900">實際發電與實際用電｜失衡累積與匹配率 RE</h4>
           <p className="mt-1 text-xs font-semibold text-slate-600">
@@ -1994,9 +2070,9 @@ export default function SettlementPreSettlementPage({
       </section>
 
       <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900">儲能預結算一致性（計畫量 vs 實際運轉）</h3>
+        <h3 className="text-lg font-bold text-slate-900">儲能{settlementTerm}一致性（計畫量 vs 實際運轉）</h3>
         <p className="mt-1 text-xs font-semibold text-slate-800">
-          計畫量對應申報計畫數值；比對實際運轉是否一致。展開後為 15 分鐘粒度（與預結算區塊同日資料）。
+          計畫量對應申報計畫數值；比對實際運轉是否一致。展開後為 15 分鐘粒度（與{settlementTerm}區塊同日資料）。
         </p>
         <button
           type="button"

@@ -80,11 +80,11 @@ const METRIC_LABEL: Record<SankeyMetricFocus, string> = {
 
 function FlowTable({ rows, showSlotCount }: { rows: AggregatedFlowRow[]; showSlotCount?: boolean }) {
   if (rows.length === 0) {
-    return <p className="text-sm text-slate-600">此範圍無對應流向紀錄。</p>;
+    return <p className="text-base text-slate-600">此範圍無對應流向紀錄。</p>;
   }
   return (
-    <div className="max-h-64 overflow-auto rounded-lg border border-slate-200">
-      <table className="min-w-full text-xs">
+    <div className="max-h-[min(50vh,28rem)] overflow-auto rounded-lg border border-slate-200">
+      <table className="min-w-full text-sm">
         <thead className="sticky top-0 bg-slate-100 text-slate-800">
           <tr>
             <th className="px-2 py-1.5 text-left font-bold">來源</th>
@@ -132,7 +132,7 @@ function AssetKwTable({
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
       <p className="text-xs font-bold text-slate-700">{title}</p>
-      <table className="mt-2 min-w-full text-xs">
+      <table className="mt-2 min-w-full text-sm">
         <thead>
           <tr className="text-slate-600">
             <th className="py-1 text-left font-bold">電號</th>
@@ -165,7 +165,7 @@ function SlotSummary({ slot }: { slot: SankeySlotDetailRow }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       {Object.entries(slot.sankeyNodes).map(([name, value]) => (
-        <div key={name} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs">
+        <div key={name} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm">
           <span className="font-bold text-slate-700">{name}</span>
           <span className="ml-2 tabular-nums font-black text-indigo-800">{value.toFixed(3)} kWh</span>
         </div>
@@ -398,7 +398,7 @@ export default function SankeyDetailDialog({ focus, onClose }: SankeyDetailDialo
 
   return (
     <Dialog open={focus !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-200 bg-white text-slate-900 shadow-xl sm:max-w-2xl [&_[data-slot=dialog-close]]:text-slate-600">
+      <DialogContent className="max-h-[90vh] w-[min(96vw,64rem)] max-w-[calc(100%-2rem)] overflow-y-auto border-slate-200 bg-white text-slate-900 shadow-xl sm:max-w-5xl [&_[data-slot=dialog-close]]:text-slate-600">
         <DialogHeader>
           <DialogTitle className="text-slate-900">{title}</DialogTitle>
           <DialogDescription className="text-slate-600">{description}</DialogDescription>
@@ -430,7 +430,7 @@ export default function SankeyDetailDialog({ focus, onClose }: SankeyDetailDialo
         <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-ui-10 text-slate-600">
           <p className="font-bold text-slate-700">電號主檔（sankey_asset_registry.csv）</p>
           <div className="mt-2 max-h-36 overflow-auto">
-            <table className="min-w-full text-ui-10">
+            <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-slate-500">
                   <th className="py-0.5 pr-2 text-left font-bold">電號</th>
