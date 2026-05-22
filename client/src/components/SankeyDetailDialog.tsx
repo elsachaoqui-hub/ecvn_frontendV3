@@ -16,6 +16,7 @@ import {
   getSankeySlotDetailsForDates,
   loadSankeyExplorerDataset,
   type AggregatedFlowRow,
+  type SankeyFlowRow,
   type SankeySlotDetailRow,
 } from '@/lib/sankeyExplorerCsv';
 
@@ -174,10 +175,25 @@ function SlotSummary({ slot }: { slot: SankeySlotDetailRow }) {
   );
 }
 
-function filterFlowsForMetric(
-  flows: ReturnType<typeof getSankeyFlows>,
-  metric: SankeyMetricFocus
-): ReturnType<typeof getSankeyFlows> {
+function aggregateFlowKwhBySourceAsset(flows: SankeyFlowRow[]): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const f of flows) {
+    if (!f.sourceAssetId) continue;
+    map[f.sourceAssetId] = Number(((map[f.sourceAssetId] ?? 0) + f.flowKwh).toFixed(3));
+  }
+  return map;
+}
+
+function aggregateFlowKwhByTargetAsset(flows: SankeyFlowRow[]): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const f of flows) {
+    if (!f.targetAssetId) continue;
+    map[f.targetAssetId] = Number(((map[f.targetAssetId] ?? 0) + f.flowKwh).toFixed(3));
+  }
+  return map;
+}
+
+function filterFlowsForMetric(flows: SankeyFlowRow[], metric: SankeyMetricFocus): SankeyFlowRow[] {
   switch (metric) {
     case 'generation':
       return flows.filter((f) => f.sourceNode === '發電端');
@@ -186,13 +202,20 @@ function filterFlowsForMetric(
     case 'storageIn':
       return flows.filter(
         (f) =>
-          f.targetNode === '儲能' ||
+          f.flowType === 'generation_storage' ||
+          f.flowType === 'storage_deposit' ||
           f.targetNode === '儲能存入量' ||
-          f.flowType.includes('storage') ||
-          f.flowType === 'balance_storage'
+          (f.targetNode === '儲能' && f.flowType !== 'balance_storage')
       );
     case 'storageOut':
-      return flows.filter((f) => f.sourceNode === '儲能' || f.sourceNode === '用電端轉移量');
+      return flows.filter(
+        (f) =>
+          f.flowType === 'storage_transfer' ||
+          f.flowType === 'transfer_success' ||
+          f.sourceNode === '用電端轉移量' ||
+          (f.sourceNode === '儲能' &&
+            (f.targetNode === '用電端轉移量' || f.targetNode === '成功匹配量' || f.targetNode === '用電端'))
+      );
     case 'contract':
       return flows.filter((f) => f.sourceNode === '合約數量' || f.targetNode === '合約數量');
     case 'total':
@@ -258,6 +281,45 @@ function SlotDetailBody({
         </div>
       )}
 
+      {metric === 'storageIn' && (
+        <>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2 text-sm text-emerald-900">
+            <p className="font-bold">本時段儲能存入（+）</p>
+            <p className="mt-1 tabular-nums font-semibold">{slot.storageChargeKwh.toFixed(3)} kWh</p>
+          </div>
+          <AssetKwTable
+            title="發電電號 → 儲能（流向依 G1～G5 加總 kWh）"
+            ids={GEN_IDS}
+            kw={Object.fromEntries(GEN_IDS.map((id) => [id, 0]))}
+            kwh={aggregateFlowKwhBySourceAsset(flows)}
+            unit="kWh"
+          />
+        </>
+      )}
+
+      {metric === 'storageOut' && (
+        <>
+          <div className="rounded-lg border border-violet-200 bg-violet-50/50 px-3 py-2 text-sm text-violet-900">
+            <p className="font-bold">本時段儲能提領（-）</p>
+            <p className="mt-1 tabular-nums font-semibold">{slot.storageDischargeKwh.toFixed(3)} kWh</p>
+          </div>
+          <AssetKwTable
+            title="發電電號經儲能轉出（來源電號加總 kWh）"
+            ids={GEN_IDS}
+            kw={Object.fromEntries(GEN_IDS.map((id) => [id, 0]))}
+            kwh={aggregateFlowKwhBySourceAsset(flows)}
+            unit="kWh"
+          />
+          <AssetKwTable
+            title="負載電號接收提領匹配（去向電號加總 kWh）"
+            ids={LOAD_IDS}
+            kw={Object.fromEntries(LOAD_IDS.map((id) => [id, 0]))}
+            kwh={aggregateFlowKwhByTargetAsset(flows)}
+            unit="kWh"
+          />
+        </>
+      )}
+
       {metric === 'all' && <SlotSummary slot={slot} />}
 
       <div>
@@ -290,6 +352,13 @@ function PeriodDetailBody({
   const loadByAsset = Object.fromEntries(
     LOAD_IDS.map((id) => [id, slots.reduce((s, r) => s + (r.loadByAssetKwh[id] ?? 0), 0)])
   );
+  const sumStorageIn = slots.reduce((s, r) => s + r.storageChargeKwh, 0);
+  const sumStorageOut = slots.reduce((s, r) => s + r.storageDischargeKwh, 0);
+  const storageInByGen = aggregateFlowKwhBySourceAsset(
+    filterFlowsForMetric(getSankeyFlowsForDates(dateLabels), 'storageIn')
+  );
+  const storageOutByGen = aggregateFlowKwhBySourceAsset(flows);
+  const storageOutByLoad = aggregateFlowKwhByTargetAsset(flows);
 
   return (
     <div className="grid gap-4">
@@ -301,6 +370,11 @@ function PeriodDetailBody({
         <p className="mt-1">
           合約匹配 {sumContract.toFixed(1)} · 成功匹配 {sumMatched.toFixed(1)} kWh
         </p>
+        {(metric === 'storageIn' || metric === 'storageOut') && (
+          <p className="mt-1 font-semibold text-slate-800">
+            儲能存入 {sumStorageIn.toFixed(1)} kWh · 儲能提領 {sumStorageOut.toFixed(1)} kWh（15 分鐘明細加總）
+          </p>
+        )}
       </div>
 
       {(metric === 'generation' || metric === 'all') && (
@@ -321,6 +395,35 @@ function PeriodDetailBody({
           kwh={loadByAsset}
           unit="kWh 加總"
         />
+      )}
+
+      {metric === 'storageIn' && (
+        <AssetKwTable
+          title="發電電號 → 儲能（區間流向依 G1～G5 加總 kWh）"
+          ids={GEN_IDS}
+          kw={Object.fromEntries(GEN_IDS.map((id) => [id, 0]))}
+          kwh={storageInByGen}
+          unit="kWh 加總"
+        />
+      )}
+
+      {metric === 'storageOut' && (
+        <>
+          <AssetKwTable
+            title="儲能提領 · 來源電號加總（kWh）"
+            ids={GEN_IDS}
+            kw={Object.fromEntries(GEN_IDS.map((id) => [id, 0]))}
+            kwh={storageOutByGen}
+            unit="kWh 加總"
+          />
+          <AssetKwTable
+            title="儲能提領 · 負載電號接收加總（kWh）"
+            ids={LOAD_IDS}
+            kw={Object.fromEntries(LOAD_IDS.map((id) => [id, 0]))}
+            kwh={storageOutByLoad}
+            unit="kWh 加總"
+          />
+        </>
       )}
 
       <div>

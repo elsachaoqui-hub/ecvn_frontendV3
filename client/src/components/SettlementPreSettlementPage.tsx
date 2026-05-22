@@ -730,6 +730,14 @@ export default function SettlementPreSettlementPage({
     [sankeyDetailRows, sankeyExplorerYear]
   );
 
+  const sankeyYearDateLabels = useMemo(
+    () =>
+      (sankeyDetailRows as SankeyDetailDayRow[])
+        .filter((r) => r.dateLabel.startsWith(`${sankeyExplorerYear}-`))
+        .map((r) => r.dateLabel),
+    [sankeyDetailRows, sankeyExplorerYear]
+  );
+
   const commitSlotEdit = useCallback(() => {
     if (!editTarget) return;
     const reason = editTarget.reason.trim();
@@ -1416,14 +1424,13 @@ export default function SettlementPreSettlementPage({
                       <button
                         type="button"
                         className="font-bold text-slate-900 underline-offset-2 hover:underline"
-                        onClick={() => {
-                          setSankeyFlowView('charge');
-                          const anchor = document.getElementById('sankey-mode-anchor');
-                          if (anchor) {
-                            const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
-                            window.scrollTo({ top: y, behavior: 'smooth' });
-                          }
-                        }}
+                        onClick={() =>
+                          openPeriodMetric(
+                            'storageIn',
+                            sankeyYearDateLabels,
+                            `${sankeyExplorerYear} 年（全年）`
+                          )
+                        }
                       >
                         儲能存入(+)
                       </button>
@@ -1432,14 +1439,13 @@ export default function SettlementPreSettlementPage({
                       <button
                         type="button"
                         className="font-bold text-slate-900 underline-offset-2 hover:underline"
-                        onClick={() => {
-                          setSankeyFlowView('discharge');
-                          const anchor = document.getElementById('sankey-mode-anchor');
-                          if (anchor) {
-                            const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
-                            window.scrollTo({ top: y, behavior: 'smooth' });
-                          }
-                        }}
+                        onClick={() =>
+                          openPeriodMetric(
+                            'storageOut',
+                            sankeyYearDateLabels,
+                            `${sankeyExplorerYear} 年（全年）`
+                          )
+                        }
                       >
                         儲能提領(-)
                       </button>
@@ -1488,39 +1494,31 @@ export default function SettlementPreSettlementPage({
                             }
                           />
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          <button
-                            type="button"
-                            className="font-semibold text-slate-900 underline-offset-2 hover:underline"
-                            onClick={() => {
-                              setSelectedSankeyDate(ymd(sankeyExplorerYear, month, 1));
-                              setSankeyFlowView('charge');
-                              const anchor = document.getElementById('sankey-mode-anchor');
-                              if (anchor) {
-                                const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
-                                window.scrollTo({ top: y, behavior: 'smooth' });
-                              }
-                            }}
-                          >
-                            {z.storageIn.toFixed(1)}
-                          </button>
+                        <td className="px-3 py-2 text-right">
+                          <SankeyMetricButton
+                            value={z.storageIn}
+                            decimals={1}
+                            onClick={() =>
+                              openPeriodMetric(
+                                'storageIn',
+                                monthDateLabels(month),
+                                `${sankeyExplorerYear} 年 ${label}`
+                              )
+                            }
+                          />
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          <button
-                            type="button"
-                            className="font-semibold text-slate-900 underline-offset-2 hover:underline"
-                            onClick={() => {
-                              setSelectedSankeyDate(ymd(sankeyExplorerYear, month, 1));
-                              setSankeyFlowView('discharge');
-                              const anchor = document.getElementById('sankey-mode-anchor');
-                              if (anchor) {
-                                const y = anchor.getBoundingClientRect().top + window.scrollY - 16;
-                                window.scrollTo({ top: y, behavior: 'smooth' });
-                              }
-                            }}
-                          >
-                            {z.storageOut.toFixed(1)}
-                          </button>
+                        <td className="px-3 py-2 text-right">
+                          <SankeyMetricButton
+                            value={z.storageOut}
+                            decimals={1}
+                            onClick={() =>
+                              openPeriodMetric(
+                                'storageOut',
+                                monthDateLabels(month),
+                                `${sankeyExplorerYear} 年 ${label}`
+                              )
+                            }
+                          />
                         </td>
                         <td className="px-3 py-2 text-right">
                           <SankeyMetricButton
