@@ -114,23 +114,26 @@ function computeSankeyFlows(slot, prevBalance) {
   const discharge = round3(Math.max(-storageActual, 0));
   const endBalance = round3(prevBalance + storageActual);
 
-  const contractMatched = round3(Math.min(gen * 0.35, load * 0.35));
-  const contractTransfer = round3(contractMatched * 0.98);
-  const transferSuccess = round3(Math.min(load * 0.62, contractMatched + discharge * 0.85));
-  const surplus = round3(Math.max(gen - contractMatched - charge * 0.4, 0) + Math.max(load - transferSuccess, 0));
+  // 發電端：8 成合約、1 成儲能、1 成餘電
+  const genToContract = round3(gen * 0.8);
+  const genToStorage = round3(gen * 0.1);
+  const genToSurplus = round3(Math.max(gen - genToContract - genToStorage, 0));
+  const balanceToStorage = round3(Math.max(charge * 0.5, 0));
 
-  const genToContract = round3(Math.max(contractMatched * 1.02, gen * 0.28));
-  const genToStorage = round3(Math.max(charge * 0.55, gen * 0.08));
-  const genToSurplus = round3(Math.max(gen - genToContract - genToStorage * 0.35, 0));
-  const balanceToStorage = round3(Math.max(prevBalance * 0.12, charge * 0.45));
-  const contractToLoad = round3(Math.min(genToContract, load * 0.88));
-  const contractToSurplus = round3(Math.max(genToContract - contractToLoad, 0));
+  // 合約全數流入用電端；用電端成功匹配量＝合約流入量；餘電＝用電總量－成功匹配
+  const contractToLoad = genToContract;
+  const contractToSurplus = 0;
+  const contractMatched = genToContract;
+  const contractTransfer = round3(contractMatched * 0.98);
+
   const storageToTransfer = round3(discharge);
   const storageToDeposit = round3(charge);
-  const loadToSuccess = round3(Math.min(load * 0.58, transferSuccess * 0.72));
+  const loadToSuccess = contractToLoad;
   const loadToSurplus = round3(Math.max(load - loadToSuccess, 0));
-  const transferToSuccess = round3(Math.min(transferSuccess - loadToSuccess, storageToTransfer));
-  const transferToSurplus = round3(Math.max(storageToTransfer - transferToSuccess, 0));
+  const transferToSuccess = 0;
+  const transferToSurplus = round3(storageToTransfer);
+  const transferSuccess = loadToSuccess;
+  const surplus = round3(genToSurplus + loadToSurplus + transferToSurplus);
 
   return {
     contract_transfer_kwh: contractTransfer,
@@ -147,7 +150,7 @@ function computeSankeyFlows(slot, prevBalance) {
     node_儲能餘額_kwh: round3(prevBalance),
     node_合約數量_kwh: genToContract,
     node_儲能_kwh: round3(genToStorage + balanceToStorage),
-    node_用電端_kwh: contractToLoad,
+    node_用電端_kwh: load,
     node_用電端轉移量_kwh: storageToTransfer,
     node_成功匹配量_kwh: round3(loadToSuccess + transferToSuccess),
     node_儲能存入量_kwh: storageToDeposit,
