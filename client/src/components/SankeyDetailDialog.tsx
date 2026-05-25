@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -472,6 +473,75 @@ function NodeEdgeBody({
   );
 }
 
+function CollapsibleAssetRegistry({ assetCount }: { assetCount: number }) {
+  const [open, setOpen] = useState(false);
+  const registryAssets = [
+    ...getSankeyAssetsByType('generation'),
+    ...getSankeyAssetsByType('load'),
+  ];
+
+  return (
+    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 text-ui-10 text-slate-600">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-slate-100/80"
+        aria-expanded={open}
+      >
+        <span className="font-bold text-slate-700">
+          電號主檔（sankey_asset_registry.csv）
+          <span className="ml-1 font-normal text-slate-500">· 共 {assetCount} 筆</span>
+        </span>
+        <span className="shrink-0 text-xs font-bold text-indigo-700">
+          {open ? '▼ 收合' : '▶ 展開'}
+        </span>
+      </button>
+      {open ? (
+        <div className="border-t border-slate-200 px-3 pb-2 pt-2">
+          <div className="max-h-40 overflow-auto rounded-md border border-slate-200 bg-white">
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 bg-slate-100">
+                <tr className="text-slate-500">
+                  <th className="px-2 py-1 text-left font-bold">電號</th>
+                  <th className="px-2 py-1 text-left font-bold">場站</th>
+                  <th className="px-2 py-1 text-left font-bold">表號</th>
+                  <th className="px-2 py-1 text-left font-bold">類型</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registryAssets.map((a) => (
+                  <tr key={a.assetId} className="border-t border-slate-100 text-slate-800">
+                    <td className="px-2 py-1 font-bold">{a.assetId}</td>
+                    <td className="px-2 py-1">{a.siteName}</td>
+                    <td className="px-2 py-1 font-mono">{a.meterNumber}</td>
+                    <td className="px-2 py-1">{a.resourceType}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-slate-500">
+            數值來源：sankey_slots_15min_detail.csv、sankey_flows_15min.csv
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function assetRegistryFocusKey(focus: SankeyDetailFocus): string {
+  switch (focus.kind) {
+    case 'slot':
+      return `slot-${focus.dateLabel}-${focus.timeLabel}-${focus.metric}`;
+    case 'period':
+      return `period-${focus.metric}-${focus.dateLabels.join('|')}`;
+    case 'node':
+      return `node-${focus.nodeName}-${focus.dateLabels.join('|')}`;
+    case 'edge':
+      return `edge-${focus.sourceNode}-${focus.targetNode}-${focus.dateLabels.join('|')}`;
+  }
+}
+
 export default function SankeyDetailDialog({ focus, onClose }: SankeyDetailDialogProps) {
   const assets = loadSankeyExplorerDataset().assets;
 
@@ -530,34 +600,9 @@ export default function SankeyDetailDialog({ focus, onClose }: SankeyDetailDialo
           />
         ) : null}
 
-        <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-ui-10 text-slate-600">
-          <p className="font-bold text-slate-700">電號主檔（sankey_asset_registry.csv）</p>
-          <div className="mt-2 max-h-36 overflow-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-slate-500">
-                  <th className="py-0.5 pr-2 text-left font-bold">電號</th>
-                  <th className="py-0.5 pr-2 text-left font-bold">場站</th>
-                  <th className="py-0.5 pr-2 text-left font-bold">表號</th>
-                  <th className="py-0.5 text-left font-bold">類型</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...getSankeyAssetsByType('generation'), ...getSankeyAssetsByType('load')].map((a) => (
-                  <tr key={a.assetId} className="border-t border-slate-200/80 text-slate-800">
-                    <td className="py-0.5 pr-2 font-bold">{a.assetId}</td>
-                    <td className="py-0.5 pr-2">{a.siteName}</td>
-                    <td className="py-0.5 pr-2 font-mono">{a.meterNumber}</td>
-                    <td className="py-0.5">{a.resourceType}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-2 text-slate-500">
-            數值來源：sankey_slots_15min_detail.csv、sankey_flows_15min.csv · 共 {assets.length} 筆電號
-          </p>
-        </div>
+        {focus ? (
+          <CollapsibleAssetRegistry key={assetRegistryFocusKey(focus)} assetCount={assets.length} />
+        ) : null}
       </DialogContent>
     </Dialog>
   );
