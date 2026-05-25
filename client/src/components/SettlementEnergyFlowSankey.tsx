@@ -48,6 +48,7 @@ const NODE_COLORS: Record<string, string> = {
   用電端轉移量: PALETTE.contract,
   成功匹配量: PALETTE.success,
   儲能存入量: PALETTE.storage,
+  未匹配量: '#64748b',
   餘電: PALETTE.surplus,
 };
 
@@ -60,6 +61,7 @@ const NODE_DEPTH: Record<string, number> = {
   用電端轉移量: 2,
   成功匹配量: 3,
   儲能存入量: 3,
+  未匹配量: 3,
   餘電: 3,
 };
 

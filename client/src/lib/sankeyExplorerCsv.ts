@@ -154,6 +154,7 @@ function parseDetailCsv(text: string): {
     'node_用電端轉移量_kwh',
     'node_成功匹配量_kwh',
     'node_儲能存入量_kwh',
+    'node_未匹配量_kwh',
     'node_餘電_kwh',
   ] as const;
 
@@ -375,6 +376,7 @@ export const SANKEY_CHART_NODES = [
   '用電端轉移量',
   '成功匹配量',
   '儲能存入量',
+  '未匹配量',
   '餘電',
 ] as const;
 
@@ -389,6 +391,7 @@ const CANONICAL_LINKS: Array<[string, string]> = [
   ['儲能', '儲能存入量'],
   ['用電端', '成功匹配量'],
   ['用電端', '餘電'],
+  ['用電端', '未匹配量'],
   ['用電端轉移量', '成功匹配量'],
   ['用電端轉移量', '餘電'],
 ];
