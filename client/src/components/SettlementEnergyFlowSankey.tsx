@@ -67,18 +67,19 @@ const NODE_DEPTH: Record<string, number> = {
 
 function buildScaledLinks(a: EnergyFlowAggregate): SankeyChartLink[] {
   const k = Math.max(a.generation / TEMPLATE_GEN, 0.05);
-  const genToContract = Number(Math.max(a.contractMatched * 1.02, 650 * k).toFixed(1));
+  const genToContract = Number((a.generation * 0.8).toFixed(1));
   const genToStorage = Number(Math.max(a.storageIn, 230 * k).toFixed(1));
   const genToSurplus = Number(Math.max(120 * k, a.generation - genToContract - genToStorage * 0.4).toFixed(1));
   const balanceToStorage = Number(Math.max(150 * k, a.storageIn * 0.55).toFixed(1));
-  const contractToLoad = Number(Math.min(640 * k, a.load * 0.92, genToContract).toFixed(1));
-  const contractToSurplus = Number(Math.max(10 * k, genToContract - contractToLoad).toFixed(1));
-  const storageToTransfer = Number(Math.max(a.storageOut, 250 * k).toFixed(1));
   const storageToDeposit = Number(Math.max(130 * k, a.storageIn * 0.48).toFixed(1));
-  const loadToSuccess = Number(Math.min(620 * k, a.totalMatched * 0.68).toFixed(1));
-  const loadToSurplus = Number(Math.max(20 * k, a.load - loadToSuccess).toFixed(1));
-  const transferToSuccess = Number(Math.min(235 * k, a.totalMatched - loadToSuccess, storageToTransfer).toFixed(1));
-  const transferToSurplus = Number(Math.max(15 * k, storageToTransfer - transferToSuccess).toFixed(1));
+  const storageInNode = genToStorage + balanceToStorage;
+  const storageToTransfer = Number(Math.max(0, storageInNode - storageToDeposit).toFixed(1));
+  const contractToLoad = genToContract;
+  const contractToSurplus = Number(Math.max(0, genToContract - contractToLoad).toFixed(1));
+  const loadToSuccess = Number((contractToLoad + storageToTransfer).toFixed(1));
+  const rem = Math.max(0, Number((a.load - loadToSuccess).toFixed(1)));
+  const loadToSurplus = Number(Math.min(contractToLoad * 0.1, rem).toFixed(1));
+  const loadToUnmatched = Number((rem - loadToSurplus).toFixed(1));
 
   return [
     { source: '發電端', target: '合約數量', value: genToContract },
@@ -89,10 +90,10 @@ function buildScaledLinks(a: EnergyFlowAggregate): SankeyChartLink[] {
     { source: '合約數量', target: '餘電', value: contractToSurplus },
     { source: '儲能', target: '用電端轉移量', value: storageToTransfer },
     { source: '儲能', target: '儲能存入量', value: storageToDeposit },
+    { source: '用電端轉移量', target: '用電端', value: storageToTransfer },
     { source: '用電端', target: '成功匹配量', value: loadToSuccess },
     { source: '用電端', target: '餘電', value: loadToSurplus },
-    { source: '用電端轉移量', target: '成功匹配量', value: transferToSuccess },
-    { source: '用電端轉移量', target: '餘電', value: transferToSurplus },
+    { source: '用電端', target: '未匹配量', value: loadToUnmatched },
   ].filter((l) => l.value > 0.05);
 }
 
