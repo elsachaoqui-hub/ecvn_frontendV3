@@ -21,7 +21,12 @@ import SankeyDetailDialog, {
   type SankeyMetricFocus,
 } from '@/components/SankeyDetailDialog';
 import { useUiFont } from '@/contexts/UiFontContext';
-import { buildSankeyChartFromDates, loadSankeyExplorerDataset } from '@/lib/sankeyExplorerCsv';
+import {
+  buildSankeyChartFromDates,
+  getSankeyAsset,
+  getSankeySlotDetail,
+  loadSankeyExplorerDataset,
+} from '@/lib/sankeyExplorerCsv';
 
 type HourRow = {
   hour: number;
@@ -195,6 +200,74 @@ const SANKEY_METRIC_CELL_BTN =
 /** 桑基明細／編輯彈窗：寬度約為原 sm:max-w-md / sm:max-w-2xl 的兩倍 */
 const SANKEY_MODAL_WIDE =
   'w-[min(96vw,64rem)] max-w-[calc(100%-2rem)] sm:max-w-5xl [&_[data-slot=dialog-close]]:text-slate-600';
+
+const GEN_IDS = ['G1', 'G2', 'G3', 'G4', 'G5'] as const;
+const LOAD_IDS = ['L1', 'L2', 'L3', 'L4', 'L5'] as const;
+
+type SlotOverride = {
+  generationActual?: number;
+  loadActual?: number;
+  storageActual?: number;
+  generationByAssetKwh?: Record<string, number>;
+  loadByAssetKwh?: Record<string, number>;
+  storageChargeKwh?: number;
+  storageDischargeKwh?: number;
+  reason?: string;
+};
+
+type SlotEditTarget = {
+  slotKey: string;
+  dateLabel: string;
+  timeLabel: string;
+  originalGenByAsset: Record<string, number>;
+  originalLoadByAsset: Record<string, number>;
+  storageChargeOriginal: number;
+  storageDischargeOriginal: number;
+  draftGenByAsset: Record<string, string>;
+  draftLoadByAsset: Record<string, string>;
+  draftStorageCharge: string;
+  draftStorageDischarge: string;
+  reason: string;
+};
+
+function sumDraftAssets(draft: Record<string, string>, ids: readonly string[]): number {
+  return Number(ids.reduce((s, id) => s + Number(draft[id] || 0), 0).toFixed(3));
+}
+
+function buildSlotEditTarget(
+  dateLabel: string,
+  slotKey: string,
+  timeLabel: string,
+  slotOverrides: Record<string, SlotOverride>
+): SlotEditTarget | null {
+  const slot = getSankeySlotDetail(dateLabel, timeLabel);
+  if (!slot) return null;
+  const ovr = slotOverrides[slotKey] ?? {};
+  const originalGenByAsset = Object.fromEntries(
+    GEN_IDS.map((id) => [id, slot.generationByAssetKwh[id] ?? 0])
+  );
+  const originalLoadByAsset = Object.fromEntries(
+    LOAD_IDS.map((id) => [id, slot.loadByAssetKwh[id] ?? 0])
+  );
+  return {
+    slotKey,
+    dateLabel,
+    timeLabel,
+    originalGenByAsset,
+    originalLoadByAsset,
+    storageChargeOriginal: slot.storageChargeKwh,
+    storageDischargeOriginal: slot.storageDischargeKwh,
+    draftGenByAsset: Object.fromEntries(
+      GEN_IDS.map((id) => [id, String(ovr.generationByAssetKwh?.[id] ?? originalGenByAsset[id])])
+    ),
+    draftLoadByAsset: Object.fromEntries(
+      LOAD_IDS.map((id) => [id, String(ovr.loadByAssetKwh?.[id] ?? originalLoadByAsset[id])])
+    ),
+    draftStorageCharge: String(ovr.storageChargeKwh ?? slot.storageChargeKwh),
+    draftStorageDischarge: String(ovr.storageDischargeKwh ?? slot.storageDischargeKwh),
+    reason: ovr.reason ?? '',
+  };
+}
 
 function SankeyMetricButton({
   value,
@@ -631,26 +704,9 @@ export default function SettlementPreSettlementPage({
   const [cExpanded] = useState(false);
   const [showStorageTable, setShowStorageTable] = useState(false);
   const [notedDays, setNotedDays] = useState<Record<string, boolean>>({});
-  const [slotOverrides, setSlotOverrides] = useState<
-    Record<
-      string,
-      { generationActual?: number; loadActual?: number; storageActual?: number; reason?: string }
-    >
-  >({});
+  const [slotOverrides, setSlotOverrides] = useState<Record<string, SlotOverride>>({});
   const [slotVendorOk, setSlotVendorOk] = useState<Record<string, boolean>>({});
-  const [editTarget, setEditTarget] = useState<{
-    slotKey: string;
-    timeLabel: string;
-    generationOriginal: number;
-    loadOriginal: number;
-    storageChargeOriginal: number;
-    storageDischargeOriginal: number;
-    draftGeneration: string;
-    draftLoad: string;
-    draftStorageCharge: string;
-    draftStorageDischarge: string;
-    reason: string;
-  } | null>(null);
+  const [editTarget, setEditTarget] = useState<SlotEditTarget | null>(null);
   const [saveToast, setSaveToast] = useState(false);
   const [detailFocus, setDetailFocus] = useState<SankeyDetailFocus | null>(null);
 
@@ -745,13 +801,17 @@ export default function SettlementPreSettlementPage({
       window.alert('請寫原因');
       return;
     }
-    const generationActual = Number(editTarget.draftGeneration);
-    const loadActual = Number(editTarget.draftLoad);
+    const generationByAssetKwh = Object.fromEntries(
+      GEN_IDS.map((id) => [id, Number(Number(editTarget.draftGenByAsset[id] || 0).toFixed(3))])
+    );
+    const loadByAssetKwh = Object.fromEntries(
+      LOAD_IDS.map((id) => [id, Number(Number(editTarget.draftLoadByAsset[id] || 0).toFixed(3))])
+    );
     const storageCharge = Number(editTarget.draftStorageCharge);
     const storageDischarge = Number(editTarget.draftStorageDischarge);
     if (
-      !Number.isFinite(generationActual) ||
-      !Number.isFinite(loadActual) ||
+      GEN_IDS.some((id) => !Number.isFinite(Number(editTarget.draftGenByAsset[id]))) ||
+      LOAD_IDS.some((id) => !Number.isFinite(Number(editTarget.draftLoadByAsset[id]))) ||
       !Number.isFinite(storageCharge) ||
       !Number.isFinite(storageDischarge) ||
       storageCharge < 0 ||
@@ -759,6 +819,8 @@ export default function SettlementPreSettlementPage({
     ) {
       return;
     }
+    const generationActual = sumDraftAssets(editTarget.draftGenByAsset, GEN_IDS);
+    const loadActual = sumDraftAssets(editTarget.draftLoadByAsset, LOAD_IDS);
     const storageActual = Number((storageCharge - storageDischarge).toFixed(3));
     setSlotOverrides((prev) => ({
       ...prev,
@@ -766,11 +828,30 @@ export default function SettlementPreSettlementPage({
         generationActual,
         loadActual,
         storageActual,
+        generationByAssetKwh,
+        loadByAssetKwh,
+        storageChargeKwh: storageCharge,
+        storageDischargeKwh: storageDischarge,
         reason,
       },
     }));
     setEditTarget(null);
     setSaveToast(true);
+  }, [editTarget]);
+
+  const editTrialTotals = useMemo(() => {
+    if (!editTarget) return null;
+    const generation = sumDraftAssets(editTarget.draftGenByAsset, GEN_IDS);
+    const load = sumDraftAssets(editTarget.draftLoadByAsset, LOAD_IDS);
+    const storageCharge = Number(editTarget.draftStorageCharge || 0);
+    const storageDischarge = Number(editTarget.draftStorageDischarge || 0);
+    return {
+      generation,
+      load,
+      storageCharge,
+      storageDischarge,
+      storageNet: Number((storageCharge - storageDischarge).toFixed(3)),
+    };
   }, [editTarget]);
 
   const explorerQuarterDisplayResolved = useMemo(() => {
@@ -782,8 +863,8 @@ export default function SettlementPreSettlementPage({
       const generationActual = ovr.generationActual ?? line.row.generationActual;
       const loadActual = ovr.loadActual ?? line.row.loadActual;
       const storageActual = ovr.storageActual ?? line.row.storageActual;
-      const stIn = Math.max(storageActual, 0);
-      const stOut = Math.max(-storageActual, 0);
+      const stIn = ovr.storageChargeKwh ?? Math.max(storageActual, 0);
+      const stOut = ovr.storageDischargeKwh ?? Math.max(-storageActual, 0);
       run = Number((run + storageActual).toFixed(3));
       const contractMatched = Number(Math.min(generationActual, loadActual * 0.35).toFixed(3));
       const totalMatched = Number((contractMatched + stOut).toFixed(3));
@@ -1849,21 +1930,20 @@ export default function SettlementPreSettlementPage({
                               <button
                                 type="button"
                                 className={SANKEY_DETAIL_BTN}
-                                onClick={() =>
-                                  setEditTarget({
-                                    slotKey: sk,
-                                    timeLabel: line.row.timeLabel,
-                                    generationOriginal: gen0,
-                                    loadOriginal: load0,
-                                    storageChargeOriginal: Math.max(storage0, 0),
-                                    storageDischargeOriginal: Math.max(-storage0, 0),
-                                    draftGeneration: String(gen),
-                                    draftLoad: String(load),
-                                    draftStorageCharge: String(line.stIn),
-                                    draftStorageDischarge: String(line.stOut),
-                                    reason: ovr.reason ?? '',
-                                  })
-                                }
+                                onClick={() => {
+                                  if (!sankeyExplorerDay) return;
+                                  const target = buildSlotEditTarget(
+                                    sankeyExplorerDay,
+                                    sk,
+                                    line.row.timeLabel,
+                                    slotOverrides
+                                  );
+                                  if (!target) {
+                                    window.alert('找不到該時段 CSV 明細（sankey_slots_15min_detail.csv）。');
+                                    return;
+                                  }
+                                  setEditTarget(target);
+                                }}
                               >
                                 編輯
                               </button>
@@ -1892,109 +1972,193 @@ export default function SettlementPreSettlementPage({
             </div>
           </div>
           <p className="mt-2 text-xs font-semibold text-slate-700">
-            表格可捲動檢視。15 分鐘層級【編輯】可分別調整發電、用電、儲能存入(+)與儲能提領(-)，並填寫一筆原因；異常數值以紅色標示，點【廠商確認】後改為綠色並顯示灰色【已確認】，再點一次可還原。
+            表格可捲動檢視。15 分鐘層級【編輯】可調整 G1～G5、L1～L5 與儲能充放電明細（資料來自 CSV）；底部即時試算發電／用電／儲能小計。修改原因必填；異常以紅色標示，廠商確認後改為綠色。
           </p>
           <Dialog open={editTarget !== null} onOpenChange={(o) => !o && setEditTarget(null)}>
             <DialogContent
               className={`max-h-[90vh] overflow-y-auto border-slate-200 bg-white text-slate-900 shadow-xl ${SANKEY_MODAL_WIDE}`}
             >
               <DialogHeader>
-                <DialogTitle className="text-lg text-slate-900">修改 15 分鐘量測值</DialogTitle>
+                <DialogTitle className="text-lg text-slate-900">修改 15 分鐘量測明細</DialogTitle>
                 <DialogDescription className="text-sm text-slate-600">
                   {editTarget
-                    ? `時段 ${editTarget.timeLabel}：可分別調整發電、用電、儲能存入(+)與儲能提領(-)（kWh，皆≥0），淨儲能＝存入－提領；修改原因必填。在數值欄按 Enter、或在原因欄按 Enter 皆可完成送出。`
+                    ? `時段 ${editTarget.timeLabel}（${editTarget.dateLabel}）· 資料來源 sankey_slots_15min_detail.csv。可編輯各電號 kWh 與儲能充放電；試算結果會回寫表格（重新整理頁面後還原 CSV 原始值）。`
                     : ''}
                 </DialogDescription>
               </DialogHeader>
-              {editTarget ? (
+              {editTarget && editTrialTotals ? (
                 <form
-                  className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 sm:grid-cols-2"
+                  className="grid gap-4"
                   onSubmit={(e) => {
                     e.preventDefault();
                     commitSlotEdit();
                   }}
                 >
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+                    <p className="text-sm font-bold text-amber-900">發電明細（kWh）</p>
+                    <div className="mt-2 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs font-bold text-slate-600">
+                            <th className="py-1 pr-2">電號</th>
+                            <th className="py-1 pr-2">場站</th>
+                            <th className="py-1 pr-2 text-right">CSV 原始</th>
+                            <th className="py-1 text-right">試算值</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {GEN_IDS.map((id) => {
+                            const asset = getSankeyAsset(id);
+                            return (
+                              <tr key={id} className="border-t border-amber-100">
+                                <td className="py-1.5 pr-2 font-bold text-slate-900">{id}</td>
+                                <td className="py-1.5 pr-2 text-slate-600">{asset?.siteName ?? '—'}</td>
+                                <td className="py-1.5 pr-2 text-right tabular-nums text-slate-500">
+                                  {editTarget.originalGenByAsset[id].toFixed(3)}
+                                </td>
+                                <td className="py-1.5 text-right">
+                                  <Input
+                                    type="number"
+                                    step="0.001"
+                                    min={0}
+                                    value={editTarget.draftGenByAsset[id]}
+                                    onChange={(e) =>
+                                      setEditTarget((t) =>
+                                        t
+                                          ? {
+                                              ...t,
+                                              draftGenByAsset: { ...t.draftGenByAsset, [id]: e.target.value },
+                                            }
+                                          : t
+                                      )
+                                    }
+                                    className="ml-auto h-9 w-28 border-slate-300 bg-white text-right text-sm tabular-nums"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3">
+                    <p className="text-sm font-bold text-blue-900">用電明細（kWh）</p>
+                    <div className="mt-2 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs font-bold text-slate-600">
+                            <th className="py-1 pr-2">電號</th>
+                            <th className="py-1 pr-2">場站</th>
+                            <th className="py-1 pr-2 text-right">CSV 原始</th>
+                            <th className="py-1 text-right">試算值</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {LOAD_IDS.map((id) => {
+                            const asset = getSankeyAsset(id);
+                            return (
+                              <tr key={id} className="border-t border-blue-100">
+                                <td className="py-1.5 pr-2 font-bold text-slate-900">{id}</td>
+                                <td className="py-1.5 pr-2 text-slate-600">{asset?.siteName ?? '—'}</td>
+                                <td className="py-1.5 pr-2 text-right tabular-nums text-slate-500">
+                                  {editTarget.originalLoadByAsset[id].toFixed(3)}
+                                </td>
+                                <td className="py-1.5 text-right">
+                                  <Input
+                                    type="number"
+                                    step="0.001"
+                                    min={0}
+                                    value={editTarget.draftLoadByAsset[id]}
+                                    onChange={(e) =>
+                                      setEditTarget((t) =>
+                                        t
+                                          ? {
+                                              ...t,
+                                              draftLoadByAsset: { ...t.draftLoadByAsset, [id]: e.target.value },
+                                            }
+                                          : t
+                                      )
+                                    }
+                                    className="ml-auto h-9 w-28 border-slate-300 bg-white text-right text-sm tabular-nums"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-3 sm:grid sm:grid-cols-2 sm:gap-4">
+                    <div>
+                      <label className="text-sm font-bold text-emerald-800">
+                        儲能存入（+，kWh）
+                        <span className="ml-1 font-normal text-slate-500">
+                          原始 {editTarget.storageChargeOriginal.toFixed(3)}
+                        </span>
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.001"
+                        value={editTarget.draftStorageCharge}
+                        onChange={(e) =>
+                          setEditTarget((t) => (t ? { ...t, draftStorageCharge: e.target.value } : t))
+                        }
+                        className="mt-1 h-10 border-emerald-300 bg-white text-base text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-bold text-violet-800">
+                        儲能提領（-，kWh）
+                        <span className="ml-1 font-normal text-slate-500">
+                          原始 {editTarget.storageDischargeOriginal.toFixed(3)}
+                        </span>
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.001"
+                        value={editTarget.draftStorageDischarge}
+                        onChange={(e) =>
+                          setEditTarget((t) => (t ? { ...t, draftStorageDischarge: e.target.value } : t))
+                        }
+                        className="mt-1 h-10 border-violet-300 bg-white text-base text-slate-900"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 sm:grid-cols-3">
+                    <div>
+                      <p className="text-xs font-bold text-amber-800">發電小計</p>
+                      <p className="mt-1 text-lg font-black tabular-nums text-amber-900">
+                        {editTrialTotals.generation.toFixed(3)} kWh
+                      </p>
+                      <p className="text-[10px] text-slate-500">G1～G5 加總</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-blue-800">用電小計</p>
+                      <p className="mt-1 text-lg font-black tabular-nums text-blue-900">
+                        {editTrialTotals.load.toFixed(3)} kWh
+                      </p>
+                      <p className="text-[10px] text-slate-500">L1～L5 加總</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-violet-800">儲能小計</p>
+                      <p className="mt-1 text-sm font-bold tabular-nums text-slate-800">
+                        存入 {editTrialTotals.storageCharge.toFixed(3)} · 提領{' '}
+                        {editTrialTotals.storageDischarge.toFixed(3)}
+                      </p>
+                      <p className="text-lg font-black tabular-nums text-violet-900">
+                        淨 {editTrialTotals.storageNet.toFixed(3)} kWh
+                      </p>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="text-sm font-bold text-slate-600">
-                      發電端（量測，kWh）
-                      <span className="ml-1 font-normal text-slate-500">
-                        原始 {editTarget.generationOriginal.toFixed(3)}
-                      </span>
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      value={editTarget.draftGeneration}
-                      onChange={(e) =>
-                        setEditTarget((t) => (t ? { ...t, draftGeneration: e.target.value } : t))
-                      }
-                      className="mt-1 h-10 border-slate-300 bg-white text-base text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-bold text-slate-600">
-                      用電端（量測，kWh）
-                      <span className="ml-1 font-normal text-slate-500">
-                        原始 {editTarget.loadOriginal.toFixed(3)}
-                      </span>
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      value={editTarget.draftLoad}
-                      onChange={(e) => setEditTarget((t) => (t ? { ...t, draftLoad: e.target.value } : t))}
-                      className="mt-1 h-10 border-slate-300 bg-white text-base text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-bold text-emerald-800">
-                      儲能存入（+，kWh）
-                      <span className="ml-1 font-normal text-slate-500">
-                        原始 {editTarget.storageChargeOriginal.toFixed(3)}
-                      </span>
-                    </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.001"
-                      value={editTarget.draftStorageCharge}
-                      onChange={(e) =>
-                        setEditTarget((t) => (t ? { ...t, draftStorageCharge: e.target.value } : t))
-                      }
-                      className="mt-1 h-10 border-emerald-300 bg-white text-base text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-bold text-violet-800">
-                      儲能提領（-，kWh）
-                      <span className="ml-1 font-normal text-slate-500">
-                        原始 {editTarget.storageDischargeOriginal.toFixed(3)}
-                      </span>
-                    </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.001"
-                      value={editTarget.draftStorageDischarge}
-                      onChange={(e) =>
-                        setEditTarget((t) => (t ? { ...t, draftStorageDischarge: e.target.value } : t))
-                      }
-                      className="mt-1 h-10 border-violet-300 bg-white text-base text-slate-900"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <p className="text-xs font-semibold text-slate-500">
-                      淨儲能量測（存入－提領）：{' '}
-                      <span className="tabular-nums font-bold text-slate-800">
-                        {(
-                          Number(editTarget.draftStorageCharge || 0) -
-                          Number(editTarget.draftStorageDischarge || 0)
-                        ).toFixed(3)}{' '}
-                        kWh
-                      </span>
-                    </p>
-                  </div>
-                  <div className="sm:col-span-2">
                     <label className="text-sm font-bold text-slate-600">
                       修改原因（追溯用）<span className="text-rose-600">*</span>
                     </label>
@@ -2022,7 +2186,7 @@ export default function SettlementPreSettlementPage({
                       取消
                     </Button>
                     <Button type="submit" className="bg-indigo-600 text-white hover:bg-indigo-700">
-                      完成
+                      完成試算並套用
                     </Button>
                   </DialogFooter>
                 </form>
