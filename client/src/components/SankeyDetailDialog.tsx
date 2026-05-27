@@ -211,11 +211,9 @@ function filterFlowsForMetric(flows: SankeyFlowRow[], metric: SankeyMetricFocus)
     case 'storageOut':
       return flows.filter(
         (f) =>
-          f.flowType === 'storage_transfer' ||
+          f.flowType === 'storage_to_load' ||
           f.flowType === 'storage_deposit' ||
-          f.flowType === 'transfer_to_load' ||
-          (f.sourceNode === '儲能' &&
-            (f.targetNode === '用電端轉移量' || f.targetNode === '儲能存入量'))
+          (f.sourceNode === '儲能' && (f.targetNode === '用電端' || f.targetNode === '儲能存入量'))
       );
     case 'contract':
       return flows.filter((f) => f.sourceNode === '合約數量' || f.targetNode === '合約數量');

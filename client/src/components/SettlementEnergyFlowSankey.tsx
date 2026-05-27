@@ -45,20 +45,19 @@ const NODE_COLORS: Record<string, string> = {
   合約數量: PALETTE.contract,
   儲能: PALETTE.storage,
   用電端: PALETTE.contract,
-  用電端轉移量: PALETTE.contract,
   成功匹配量: PALETTE.success,
   儲能存入量: PALETTE.storage,
   未匹配量: '#64748b',
   餘電: PALETTE.surplus,
 };
 
+/** 固定欄位：左→右 4 欄（0～3），避免右側留白 */
 const NODE_DEPTH: Record<string, number> = {
   發電端: 0,
   儲能餘額: 0,
   合約數量: 1,
   儲能: 1,
   用電端: 2,
-  用電端轉移量: 2,
   成功匹配量: 3,
   儲能存入量: 3,
   未匹配量: 3,
@@ -73,10 +72,10 @@ function buildScaledLinks(a: EnergyFlowAggregate): SankeyChartLink[] {
   const balanceToStorage = Number(Math.max(150 * k, a.storageIn * 0.55).toFixed(1));
   const storageToDeposit = Number(Math.max(130 * k, a.storageIn * 0.48).toFixed(1));
   const storageInNode = genToStorage + balanceToStorage;
-  const storageToTransfer = Number(Math.max(0, storageInNode - storageToDeposit).toFixed(1));
+  const storageToLoad = Number(Math.max(0, storageInNode - storageToDeposit).toFixed(1));
   const contractToLoad = genToContract;
   const contractToSurplus = Number(Math.max(0, genToContract - contractToLoad).toFixed(1));
-  const loadToSuccess = Number((contractToLoad + storageToTransfer).toFixed(1));
+  const loadToSuccess = Number((contractToLoad + storageToLoad).toFixed(1));
   const rem = Math.max(0, Number((a.load - loadToSuccess).toFixed(1)));
   const loadToSurplus = Number(Math.min(contractToLoad * 0.1, rem).toFixed(1));
   const loadToUnmatched = Number((rem - loadToSurplus).toFixed(1));
@@ -88,9 +87,8 @@ function buildScaledLinks(a: EnergyFlowAggregate): SankeyChartLink[] {
     { source: '儲能餘額', target: '儲能', value: balanceToStorage },
     { source: '合約數量', target: '用電端', value: contractToLoad },
     { source: '合約數量', target: '餘電', value: contractToSurplus },
-    { source: '儲能', target: '用電端轉移量', value: storageToTransfer },
+    { source: '儲能', target: '用電端', value: storageToLoad },
     { source: '儲能', target: '儲能存入量', value: storageToDeposit },
-    { source: '用電端轉移量', target: '用電端', value: storageToTransfer },
     { source: '用電端', target: '成功匹配量', value: loadToSuccess },
     { source: '用電端', target: '餘電', value: loadToSurplus },
     { source: '用電端', target: '未匹配量', value: loadToUnmatched },
@@ -135,14 +133,14 @@ export default function SettlementEnergyFlowSankey({
   }, [activeNode, resolvedLinks]);
 
   const option = useMemo<EChartsOption>(() => {
-    const edge = enlarge ? 52 : 44;
+    const edge = enlarge ? 28 : 20;
     const labelCommon = {
       color: PALETTE.text,
       fontSize: enlarge ? chartFonts.sankeyNodeEnlarge : chartFonts.sankeyNode,
       fontWeight: 700,
       lineHeight: 15,
-      width: enlarge ? 108 : 84,
-      distance: 6,
+      width: enlarge ? 96 : 72,
+      distance: 4,
       overflow: 'breakAll' as const,
     };
 
@@ -154,13 +152,12 @@ export default function SettlementEnergyFlowSankey({
 
     const nodes = SANKEY_CHART_NODES.filter((name) => usedNodes.has(name)).map((name) => {
       const depth = NODE_DEPTH[name] ?? 0;
-      const labelPosition = 'right' as const;
-      const labelDistance = depth === 0 ? 8 : depth === 3 ? 12 : 6;
+      const labelPosition = depth >= 2 ? ('right' as const) : ('left' as const);
       return {
         name,
         depth,
         itemStyle: { color: NODE_COLORS[name] ?? PALETTE.contract },
-        label: { ...labelCommon, position: labelPosition, distance: labelDistance },
+        label: { ...labelCommon, position: labelPosition, distance: depth >= 2 ? 8 : 6 },
       };
     });
 
@@ -196,16 +193,18 @@ export default function SettlementEnergyFlowSankey({
         {
           type: 'sankey',
           left: edge,
-          right: enlarge ? 140 : 120,
+          right: edge,
           top: edge,
           bottom: edge,
-          nodeWidth: 10,
-          nodeGap: enlarge ? 42 : 36,
+          width: 'auto',
+          height: 'auto',
+          nodeWidth: 12,
+          nodeGap: enlarge ? 28 : 22,
           nodeAlign: 'justify',
-          layoutIterations: 64,
+          layoutIterations: 48,
           emphasis: { focus: 'adjacency', lineStyle: { color: 'gradient', opacity: 0.88 } },
           draggable: true,
-          roam: true,
+          roam: false,
           lineStyle: { color: 'gradient', curveness: 0.32, opacity: 0.62 },
           label: labelCommon,
           data: nodes,
@@ -267,12 +266,12 @@ export default function SettlementEnergyFlowSankey({
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[10px] font-black text-slate-600 sm:grid-cols-5 sm:text-xs">
         <span className="rounded-md bg-amber-50 py-1 text-amber-900">① 發電端／儲能餘額</span>
         <span className="rounded-md bg-indigo-50 py-1 text-indigo-900">② 合約數量／儲能</span>
-        <span className="rounded-md bg-blue-50 py-1 text-blue-900">③ 用電端／轉移量</span>
-        <span className="rounded-md bg-emerald-50 py-1 text-emerald-900 sm:col-span-2">④ 成功匹配／存入／餘電</span>
+        <span className="rounded-md bg-blue-50 py-1 text-blue-900">③ 用電端</span>
+        <span className="rounded-md bg-emerald-50 py-1 text-emerald-900 sm:col-span-2">④ 成功匹配／存入／未匹配／餘電</span>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2">
-        <div className={`${enlarge ? 'h-[620px] min-w-[1100px]' : 'h-[520px] min-w-[1020px]'}`}>
+      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-2">
+        <div className={`w-full ${enlarge ? 'h-[620px]' : 'h-[520px]'}`}>
           <ReactECharts option={option} style={{ height: '100%', width: '100%' }} opts={{ renderer: 'canvas' }} onEvents={chartEvents} />
         </div>
       </div>

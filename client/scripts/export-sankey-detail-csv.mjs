@@ -119,20 +119,19 @@ function computeSankeyFlows(slot, prevBalance) {
   const genToSurplus = round3(Math.max(gen - genToContract - genToStorage, 0));
   const balanceToStorage = round3(Math.max(charge * 0.5, 0));
 
-  // 合約全數先入用電端；成功匹配＝合約量＋用電端轉移量；其餘用電（扣成功匹配後）區分為一小段餘電與未匹配量
+  // 合約全數先入用電端；成功匹配＝合約量＋儲能直送用電端；其餘用電區分為餘電與未匹配量
   const contractToLoad = genToContract;
   const contractToSurplus = 0;
   const contractMatched = genToContract;
   const contractTransfer = round3(contractMatched * 0.98);
 
-  // 儲能節點：流入（發電直送＋餘額支援）必須等於流出（→用電端轉移量＋→儲能存入量）
+  // 儲能節點：流入＝流出（→用電端＋→儲能存入量）
   const storageToDeposit = round3(charge);
   const storageInToNode = round3(genToStorage + balanceToStorage);
-  const storageToTransfer = round3(Math.max(0, storageInToNode - storageToDeposit));
+  const storageToLoad = round3(Math.max(0, storageInToNode - storageToDeposit));
 
-  // 成功匹配量＝合約流入用電端＋經「用電端轉移量」回的電量（與示意 discharge 對齊）
-  const dischargeForFields = round3(storageToTransfer);
-  const loadToSuccess = round3(contractToLoad + storageToTransfer);
+  const dischargeForFields = round3(storageToLoad);
+  const loadToSuccess = round3(contractToLoad + storageToLoad);
   const remainderAfterSuccess = round3(Math.max(load - loadToSuccess, 0));
   const surplusShareCeil = round3(contractToLoad * 0.1);
   const loadToSurplus = round3(Math.min(surplusShareCeil, remainderAfterSuccess));
@@ -157,7 +156,7 @@ function computeSankeyFlows(slot, prevBalance) {
     node_合約數量_kwh: genToContract,
     node_儲能_kwh: round3(genToStorage + balanceToStorage),
     node_用電端_kwh: load,
-    node_用電端轉移量_kwh: storageToTransfer,
+    node_用電端轉移量_kwh: storageToLoad,
     node_成功匹配量_kwh: loadToSuccess,
     node_儲能存入量_kwh: storageToDeposit,
     node_未匹配量_kwh: loadToUnmatched,
@@ -169,12 +168,11 @@ function computeSankeyFlows(slot, prevBalance) {
       { source: '儲能餘額', target: '儲能', kwh: balanceToStorage, type: 'balance_storage' },
       { source: '合約數量', target: '用電端', kwh: contractToLoad, type: 'contract_load' },
       { source: '合約數量', target: '餘電', kwh: contractToSurplus, type: 'contract_surplus' },
-      { source: '儲能', target: '用電端轉移量', kwh: storageToTransfer, type: 'storage_transfer' },
+      { source: '儲能', target: '用電端', kwh: storageToLoad, type: 'storage_to_load' },
       { source: '儲能', target: '儲能存入量', kwh: storageToDeposit, type: 'storage_deposit' },
       { source: '用電端', target: '成功匹配量', kwh: loadToSuccess, type: 'load_success' },
       { source: '用電端', target: '餘電', kwh: loadToSurplus, type: 'load_surplus' },
       { source: '用電端', target: '未匹配量', kwh: loadToUnmatched, type: 'load_unmatched' },
-      { source: '用電端轉移量', target: '用電端', kwh: storageToTransfer, type: 'transfer_to_load' },
     ],
   };
 }
@@ -196,23 +194,6 @@ function allocateAssetFlows(link, genKwhParts, loadKwhParts) {
         flow_kwh: flow,
         flow_type: type,
         notes: `${GEN_IDS[i]} ${genKwhParts[i]}kWh 時段占比`,
-      });
-    });
-    return rows;
-  }
-
-  if (source === '用電端轉移量' && target === '用電端') {
-    const parts = splitByWeights(kwh, LOAD_WEIGHTS);
-    parts.forEach((flow, i) => {
-      if (flow <= 0) return;
-      rows.push({
-        source_node: source,
-        source_asset_id: '',
-        target_node: target,
-        target_asset_id: LOAD_IDS[i],
-        flow_kwh: flow,
-        flow_type: type,
-        notes: `${LOAD_IDS[i]} 負載 ${loadKwhParts[i]}kWh 時段占比`,
       });
     });
     return rows;
