@@ -152,9 +152,9 @@ function parseDetailCsv(text: string): {
     'node_儲能_kwh',
     'node_用電端_kwh',
     'node_用電端轉移量_kwh',
-    'node_成功匹配量_kwh',
-    'node_儲能存入量_kwh',
-    'node_未匹配量_kwh',
+    'node_成功匹配_kwh',
+    'node_儲能存入_kwh',
+    'node_未匹配_kwh',
     'node_餘電_kwh',
   ] as const;
 
@@ -373,9 +373,9 @@ export const SANKEY_CHART_NODES = [
   '合約數量',
   '儲能',
   '用電端',
-  '成功匹配量',
-  '儲能存入量',
-  '未匹配量',
+  '成功匹配',
+  '儲能存入',
+  '未匹配',
   '餘電',
 ] as const;
 
@@ -387,10 +387,10 @@ const CANONICAL_LINKS: Array<[string, string]> = [
   ['合約數量', '用電端'],
   ['合約數量', '餘電'],
   ['儲能', '用電端'],
-  ['儲能', '儲能存入量'],
-  ['用電端', '成功匹配量'],
+  ['儲能', '儲能存入'],
+  ['用電端', '成功匹配'],
   ['用電端', '餘電'],
-  ['用電端', '未匹配量'],
+  ['用電端', '未匹配'],
 ];
 
 /** 依日期清單從 CSV 流向加總桑基圖連線（年／月／日層級共用） */

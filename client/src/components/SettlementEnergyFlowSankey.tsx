@@ -45,9 +45,9 @@ const NODE_COLORS: Record<string, string> = {
   合約數量: PALETTE.contract,
   儲能: PALETTE.storage,
   用電端: PALETTE.contract,
-  成功匹配量: PALETTE.success,
-  儲能存入量: PALETTE.storage,
-  未匹配量: '#64748b',
+  成功匹配: PALETTE.success,
+  儲能存入: PALETTE.storage,
+  未匹配: '#64748b',
   餘電: PALETTE.surplus,
 };
 
@@ -58,13 +58,13 @@ const NODE_DEPTH: Record<string, number> = {
   合約數量: 1,
   儲能: 1,
   用電端: 2,
-  成功匹配量: 3,
-  儲能存入量: 3,
-  未匹配量: 3,
+  成功匹配: 3,
+  儲能存入: 3,
+  未匹配: 3,
   餘電: 3,
 };
 
-const NODE_LABEL_LEFT = new Set(['成功匹配量', '未匹配量', '餘電', '儲能存入量']);
+const NODE_LABEL_LEFT = new Set(['成功匹配', '未匹配', '餘電', '儲能存入']);
 
 function getNodeLabelPosition(name: string): 'left' | 'right' {
   if (NODE_LABEL_LEFT.has(name)) return 'left';
@@ -95,10 +95,10 @@ function buildScaledLinks(a: EnergyFlowAggregate): SankeyChartLink[] {
     { source: '合約數量', target: '用電端', value: contractToLoad },
     { source: '合約數量', target: '餘電', value: contractToSurplus },
     { source: '儲能', target: '用電端', value: storageToLoad },
-    { source: '儲能', target: '儲能存入量', value: storageToDeposit },
-    { source: '用電端', target: '成功匹配量', value: loadToSuccess },
+    { source: '儲能', target: '儲能存入', value: storageToDeposit },
+    { source: '用電端', target: '成功匹配', value: loadToSuccess },
     { source: '用電端', target: '餘電', value: loadToSurplus },
-    { source: '用電端', target: '未匹配量', value: loadToUnmatched },
+    { source: '用電端', target: '未匹配', value: loadToUnmatched },
   ].filter((l) => l.value > 0.05);
 }
 
