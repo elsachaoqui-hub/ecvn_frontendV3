@@ -34,8 +34,10 @@ const navModules: ModuleItem[] = [
     subItems: [
       { id: 'dash-2-1', label: '2.1 代理人資源聚合管理', view: 'dashboard-agent-aggregation' },
       { id: 'dash-2-2', label: '2.2 通訊資料' },
-      { id: 'dash-2-3', label: '2.3 即時發電量監控', view: 'dashboard-realtime-generation' },
-      { id: 'dash-2-4', label: '2.4 MVRN 分配' },
+      { id: 'dash-2-3', label: '2.3 即時AMI電量監控', view: 'dashboard-realtime-ami-power' },
+      { id: 'dash-2-4', label: '2.4 即時發電量監控', view: 'dashboard-realtime-generation' },
+      { id: 'dash-2-5', label: '2.5 MVRN 分配', view: 'dashboard-mvrn-allocation' },
+      { id: 'dash-2-5-1', label: '2.5.1 自行分配明細版', view: 'dashboard-mvrn-allocation-detail' },
     ],
   },
   {
@@ -74,7 +76,7 @@ const navModules: ModuleItem[] = [
     label: '6. 監管作業',
     subItems: [
       { id: 'mon-6-1', label: '6.1 市場流程監控' },
-      { id: 'mon-6-2', label: '6.2 市場監控儀表板' },
+      { id: 'mon-6-2', label: '6.2 市場監控儀表板', view: 'monitoring-market-dashboard' },
     ],
   },
   {
@@ -82,7 +84,7 @@ const navModules: ModuleItem[] = [
     icon: 'fas fa-cog',
     label: '7. 其他作業',
     subItems: [
-      { id: 'oth-7-1', label: '7.1 通知' },
+      { id: 'oth-7-1', label: '7.1 通知', view: 'notification-center' },
       { id: 'oth-7-2', label: '7.2 系統管理' },
       { id: 'oth-7-3', label: '7.3 網站管理' },
       { id: 'oth-7-4', label: '7.4 設定網頁', view: 'web-settings' },

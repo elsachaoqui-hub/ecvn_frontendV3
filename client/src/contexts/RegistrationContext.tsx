@@ -14,12 +14,17 @@ export type PlanSection =
 export type AppMainView =
   | 'registration'
   | 'dashboard-agent-aggregation'
+  | 'dashboard-realtime-ami-power'
   | 'dashboard-realtime-generation'
+  | 'dashboard-mvrn-allocation'
+  | 'dashboard-mvrn-allocation-detail'
   | 'declaration-plan'
   | 'settlement-pre'
   | 'settlement-monthly'
   | 'checking-daily'
   | 'checking-monthly'
+  | 'monitoring-market-dashboard'
+  | 'notification-center'
   | 'web-settings';
 
 interface RegistrationState {

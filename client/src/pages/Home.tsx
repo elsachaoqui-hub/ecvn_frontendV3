@@ -7,13 +7,18 @@ import Step3Storages from '@/components/Step3Storages';
 import ContractModal from '@/components/ContractModal';
 import StorageModal from '@/components/StorageModal';
 import DashboardAgentAggregation from '@/components/DashboardAgentAggregation';
+import DashboardRealTimeAmiPower from '@/components/DashboardRealTimeAmiPower';
 import DashboardRealTimeGeneration from '@/components/DashboardRealTimeGeneration';
+import DashboardMvrnAllocationPage from '@/components/DashboardMvrnAllocationPage';
+import DashboardMvrnAllocationSelfDetailPage from '@/components/DashboardMvrnAllocationSelfDetailPage';
 import DeclarationPlanPage from '@/components/DeclarationPlanPage';
 import SettlementPreSettlementPage from '@/components/SettlementPreSettlementPage';
 import SettlementMonthlyPage from '@/components/SettlementMonthlyPage';
 import RegistrationOverview from '@/components/RegistrationOverview';
 import DailyCheckingPage from '@/components/DailyCheckingPage';
 import MonthlyCheckingPage from '@/components/MonthlyCheckingPage';
+import MarketMonitoringDashboardPage from '@/components/MarketMonitoringDashboardPage';
+import NotificationPage from '@/components/NotificationPage';
 import WebSettingsPage from '@/components/WebSettingsPage';
 import { UiFontProvider } from '@/contexts/UiFontContext';
 
@@ -39,12 +44,17 @@ function MainContent() {
             </>
           )}
           {currentView === 'dashboard-agent-aggregation' && <DashboardAgentAggregation />}
+          {currentView === 'dashboard-realtime-ami-power' && <DashboardRealTimeAmiPower />}
           {currentView === 'dashboard-realtime-generation' && <DashboardRealTimeGeneration />}
+          {currentView === 'dashboard-mvrn-allocation' && <DashboardMvrnAllocationPage />}
+          {currentView === 'dashboard-mvrn-allocation-detail' && <DashboardMvrnAllocationSelfDetailPage />}
           {currentView === 'declaration-plan' && <DeclarationPlanPage />}
           {currentView === 'checking-daily' && <DailyCheckingPage />}
           {currentView === 'checking-monthly' && <MonthlyCheckingPage />}
           {currentView === 'settlement-pre' && <SettlementPreSettlementPage variant="pre" />}
           {currentView === 'settlement-monthly' && <SettlementMonthlyPage />}
+          {currentView === 'monitoring-market-dashboard' && <MarketMonitoringDashboardPage />}
+          {currentView === 'notification-center' && <NotificationPage />}
           {currentView === 'web-settings' && <WebSettingsPage />}
         </main>
       </div>
