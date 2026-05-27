@@ -64,6 +64,13 @@ const NODE_DEPTH: Record<string, number> = {
   餘電: 3,
 };
 
+const NODE_LABEL_LEFT = new Set(['成功匹配量', '未匹配量', '餘電', '儲能存入量']);
+
+function getNodeLabelPosition(name: string): 'left' | 'right' {
+  if (NODE_LABEL_LEFT.has(name)) return 'left';
+  return 'right';
+}
+
 function buildScaledLinks(a: EnergyFlowAggregate): SankeyChartLink[] {
   const k = Math.max(a.generation / TEMPLATE_GEN, 0.05);
   const genToContract = Number((a.generation * 0.8).toFixed(1));
@@ -152,12 +159,17 @@ export default function SettlementEnergyFlowSankey({
 
     const nodes = SANKEY_CHART_NODES.filter((name) => usedNodes.has(name)).map((name) => {
       const depth = NODE_DEPTH[name] ?? 0;
-      const labelPosition = depth >= 2 ? ('right' as const) : ('left' as const);
+      const labelPosition = getNodeLabelPosition(name);
       return {
         name,
         depth,
         itemStyle: { color: NODE_COLORS[name] ?? PALETTE.contract },
-        label: { ...labelCommon, position: labelPosition, distance: depth >= 2 ? 8 : 6 },
+        label: {
+          ...labelCommon,
+          position: labelPosition,
+          distance: labelPosition === 'left' ? 8 : 6,
+          align: labelPosition === 'left' ? ('right' as const) : ('left' as const),
+        },
       };
     });
 
