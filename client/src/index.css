@@ -1,0 +1,458 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  /* 表單焦點／反白：與品牌色 --primary（琥珀）分開，避免輸入框選取呈棕色 */
+  --color-field-focus: var(--field-focus);
+  --color-selection-bg: var(--selection-bg);
+  --color-selection-fg: var(--selection-fg);
+  --font-sans: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+
+  /* Tailwind text-* 對應可調字級變數 */
+  --text-xs: var(--ui-font-12);
+  --text-xs--line-height: 1rem;
+  --text-sm: var(--ui-font-14);
+  --text-sm--line-height: 1.25rem;
+  --text-base: var(--ui-font-16);
+  --text-base--line-height: 1.5rem;
+  --text-lg: var(--ui-font-18);
+  --text-lg--line-height: 1.75rem;
+  --text-xl: var(--ui-font-20);
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: var(--ui-font-24);
+  --text-2xl--line-height: 2rem;
+  --text-3xl: var(--ui-font-30);
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl: var(--ui-font-36);
+  --text-4xl--line-height: 2.5rem;
+  --text-6xl: 3.75rem;
+  --text-6xl--line-height: 1;
+}
+
+:root {
+  /* 全站字級（px）— 可由 7.4 設定網頁調整，見 lib/uiFontScale.ts */
+  --ui-font-10: 15px;
+  --ui-font-11: 15px;
+  --ui-font-12: 15px;
+  --ui-font-13: 15px;
+  --ui-font-14: 15px;
+  --ui-font-16: 16px;
+  --ui-font-18: 18px;
+  --ui-font-20: 20px;
+  --ui-font-24: 24px;
+  --ui-font-30: 30px;
+  --ui-font-36: 36px;
+
+  --primary: oklch(0.454 0.245 82.881);
+  --primary-foreground: oklch(0.03 0.014 74.604);
+  --sidebar-primary: oklch(0.454 0.245 82.881);
+  --sidebar-primary-foreground: oklch(0.03 0.014 74.604);
+  --chart-1: oklch(0.293 0.165 74.624);
+  --chart-2: oklch(0.454 0.245 82.881);
+  --chart-3: oklch(0.512 0.217 84.376);
+  --chart-4: oklch(0.576 0.199 85.638);
+  --chart-5: oklch(0.621 0.146 85.522);
+  --radius: 0.65rem;
+  --background: oklch(0.016 0.003 67.858);
+  --foreground: oklch(0.765 0.015 245);
+  --card: oklch(0 0 180);
+  --card-foreground: oklch(0.765 0.015 245);
+  --popover: oklch(0 0 180);
+  --popover-foreground: oklch(0.765 0.015 245);
+  --secondary: oklch(0.02 0.001 106.375);
+  --secondary-foreground: oklch(0.6 0.015 245);
+  --muted: oklch(0.033 0.001 106.375);
+  --muted-foreground: oklch(0.448 0.016 105.938);
+  --accent: oklch(0.033 0.001 106.375);
+  --accent-foreground: oklch(0.859 0.005 105.823);
+  --destructive: oklch(0.423 0.245 207.325);
+  --destructive-foreground: oklch(0.015 0 180);
+  --border: oklch(0.08 0.004 106.32);
+  --input: oklch(0.08 0.004 106.32);
+  --ring: oklch(0.454 0.245 82.881);
+  /* Windows 風格：輸入框焦點框與文字反白（見 ui/input.tsx、ui/textarea.tsx） */
+  --field-focus: #0078d4;
+  --selection-bg: #0078d4;
+  --selection-fg: #ffffff;
+  --sidebar: oklch(0.792 0.042 85.755);
+  --sidebar-foreground: oklch(0.071 0.013 75.508);
+  --sidebar-accent: oklch(0.721 0.041 80.031);
+  --sidebar-accent-foreground: oklch(0.015 0 180);
+  --sidebar-border: oklch(0.721 0.041 80.031);
+  --sidebar-ring: oklch(0.454 0.245 82.881);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  ::selection {
+    background-color: var(--selection-bg);
+    color: var(--selection-fg);
+  }
+  input::selection,
+  textarea::selection {
+    background-color: var(--selection-bg);
+    color: var(--selection-fg);
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+/* Custom scrollbar（全站預設；淺色業務表格請用 .sankey-table-scroll 覆寫） */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #cfc7c0; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #342b20; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #6d5f4e; }
+
+/* 桑基／15 分鐘明細表：灰底軌道 + 黑色滑塊，thumb 高度隨內容比例變化 */
+.sankey-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #000000 #d1d5db;
+}
+.sankey-table-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.sankey-table-scroll::-webkit-scrollbar-track {
+  background: #d1d5db;
+  border-radius: 5px;
+}
+.sankey-table-scroll::-webkit-scrollbar-thumb {
+  background: #000000;
+  border-radius: 5px;
+  border: 2px solid #d1d5db;
+  min-height: 40px;
+}
+.sankey-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #262626;
+}
+
+/* Step indicator styles */
+.step-active { border-color: #C47D09; color: #C47D09; }
+.step-inactive { border-color: #1D170F; color: #6B5C47; }
+.step-completed { border-color: #EF467E; color: #EF467E; }
+
+.process-step-active {
+  border-color: #f59e0b;
+  color: #fcd34d;
+  background: radial-gradient(circle at center, rgba(245, 158, 11, 0.38), rgba(245, 158, 11, 0.12));
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25), 0 0 24px rgba(245, 158, 11, 0.45);
+  animation: stepPulse 2.8s ease-in-out infinite;
+}
+
+.asset-theme-generation {
+  color: #a16207;
+  background-color: rgba(250, 204, 21, 0.14);
+}
+
+.asset-theme-load {
+  color: #b91c1c;
+  background-color: rgba(248, 113, 113, 0.14);
+}
+
+.asset-theme-storage {
+  color: #1d4ed8;
+  background-color: rgba(96, 165, 250, 0.14);
+}
+
+/* Sidebar transition */
+.sidebar-transition {
+  transition: width 1.26s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 1.26s ease;
+  will-change: width;
+}
+
+.sidebar-open {
+  box-shadow: 0 16px 40px rgba(2, 8, 23, 0.45);
+}
+
+.sidebar-module {
+  opacity: 0;
+  transform: translateX(-10px) scale(0.98);
+}
+
+.sidebar-open .sidebar-module.is-visible {
+  animation: sidebarModuleIn 1.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* 收合時不再套用 .sidebar-open，需還原可見，否則第一層導覽會整列透明 */
+.sidebar-closed .sidebar-module {
+  opacity: 1;
+  transform: none;
+}
+
+/* 葉節點（無子選單）連結：勿套用僅在 submenu-open 內才顯示的 .sidebar-subitem 規則 */
+.sidebar-module.sidebar-leaf > a {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.sidebar-submenu {
+  overflow: hidden;
+  transform-origin: top;
+  transition: max-height 1.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.9s ease;
+}
+
+.sidebar-submenu.submenu-open {
+  max-height: 240px;
+  opacity: 1;
+}
+
+.sidebar-submenu.submenu-closed {
+  max-height: 0;
+  opacity: 0;
+}
+
+.sidebar-subitem {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.9s ease, background-color 0.66s ease, color 0.66s ease;
+}
+
+.sidebar-submenu.submenu-open .sidebar-subitem {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+
+@keyframes sidebarModuleIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes stepPulse {
+  0%, 100% {
+    filter: brightness(1);
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25), 0 0 20px rgba(245, 158, 11, 0.32);
+  }
+  50% {
+    filter: brightness(1.12);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.35), 0 0 32px rgba(251, 191, 36, 0.6);
+  }
+}
+
+/* Leaflet divIcon：避免預設白底／邊框蓋住自訂標記內容 */
+.leaflet-div-icon.resource-marker-divicon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.resource-marker {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  transform-origin: center;
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.resource-marker__pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  opacity: 0;
+  transform: scale(0.75);
+}
+
+.resource-marker__core {
+  position: relative;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.26);
+}
+
+.resource-marker__tooltip {
+  position: absolute;
+  left: 42px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.96);
+  min-width: 140px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.26);
+}
+
+.resource-marker__title {
+  font-size: var(--ui-font-13);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.resource-marker__meta {
+  margin-top: 2px;
+  font-size: var(--ui-font-12);
+  color: #cbd5e1;
+}
+
+.resource-marker.asset-theme-generation .resource-marker__core {
+  background: linear-gradient(135deg, #facc15, #f59e0b);
+}
+
+.resource-marker.asset-theme-generation .resource-marker__pulse {
+  background: rgba(250, 204, 21, 0.35);
+}
+
+.resource-marker.asset-theme-load .resource-marker__core {
+  background: linear-gradient(135deg, #fb7185, #ef4444);
+}
+
+.resource-marker.asset-theme-load .resource-marker__pulse {
+  background: rgba(248, 113, 113, 0.35);
+}
+
+.resource-marker.asset-theme-storage .resource-marker__core {
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+}
+
+.resource-marker.asset-theme-storage .resource-marker__pulse {
+  background: rgba(96, 165, 250, 0.35);
+}
+
+.resource-marker.is-active,
+.resource-marker.is-focused {
+  animation: markerCutePulse 1.5s ease-in-out infinite;
+  z-index: 20;
+}
+
+.resource-marker.is-active .resource-marker__pulse,
+.resource-marker.is-focused .resource-marker__pulse {
+  opacity: 1;
+  animation: markerPulseRing 1.5s ease-in-out infinite;
+}
+
+.resource-marker.is-active .resource-marker__tooltip,
+.resource-marker.is-focused .resource-marker__tooltip {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+@keyframes markerCutePulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.12);
+    filter: brightness(1.08);
+  }
+}
+
+@keyframes markerPulseRing {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+@utility text-ui-10 {
+  font-size: var(--ui-font-10);
+}
+
+@utility text-ui-11 {
+  font-size: var(--ui-font-11);
+}
+
+@layer components {
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+      max-width: 1280px;
+    }
+  }
+}

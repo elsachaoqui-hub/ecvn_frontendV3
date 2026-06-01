@@ -1,0 +1,21 @@
+# 忽略最大的 Token 黑洞
+node_modules/
+
+# 忽略打包後的成品（那是給電腦讀的，AI 讀了會亂掉）
+dist/
+build/
+out/
+
+# 忽略版本控制資料
+.git/
+
+# 忽略日誌與快取
+*.log
+.eslintcache
+.cache/
+
+# 忽略大型圖檔或媒體（如果有的話）
+*.png
+*.jpg
+*.jpeg
+*.mp4
