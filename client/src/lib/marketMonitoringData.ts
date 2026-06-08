@@ -64,6 +64,32 @@ export type SettlementAbnormalRow = {
   dateKey: string;
 };
 
+export type StorageBenefitAgentSummary = {
+  agentId: number;
+  /** 轉供發電量 */
+  transferGenKWh: number;
+  /** 轉供電量 */
+  contractTransferKWh: number;
+  /** 儲能移轉電量 */
+  storageTransferKWh: number;
+  /** 餘電量 = 轉供發電量 − 轉供電量 − 儲能移轉電量 */
+  surplusKWh: number;
+  contractTransferPct: number;
+  storageTransferPct: number;
+  surplusPct: number;
+  dateKey: string;
+};
+
+export type StorageBenefitLoadDetail = {
+  agentId: number;
+  meterNo: string;
+  siteName: string;
+  loadNo: string;
+  contractTransferKWh: number;
+  storageTransferKWh: number;
+};
+
+/** @deprecated 改用 StorageBenefitAgentSummary / StorageBenefitLoadDetail */
 export type StorageBenefitRow = {
   meterNo: string;
   transferKWh: number;
@@ -240,6 +266,97 @@ export function buildSettlementAbnormal(dateKeys: string[], agentIdFilter = ALL_
 
 const METER_NOS = ['99123456789', '99876543210', '99555111222', '99333444555'];
 
+function pctOf(part: number, total: number): number {
+  return total > 0 ? Number(((part / total) * 100).toFixed(1)) : 0;
+}
+
+function distributeKwhToLoads(
+  loads: Agent['loadList'],
+  totalContract: number,
+  totalStorage: number,
+  agentId: number
+): StorageBenefitLoadDetail[] {
+  if (loads.length === 0) {
+    return [
+      {
+        agentId,
+        meterNo: METER_NOS[agentId % METER_NOS.length],
+        siteName: '用電端（示範）',
+        loadNo: '—',
+        contractTransferKWh: totalContract,
+        storageTransferKWh: totalStorage,
+      },
+    ];
+  }
+
+  const weights = loads.map((_, i) => 0.15 + hashUnit(`st:lw:${agentId}:${i}`) * 0.85);
+  const sumW = weights.reduce((a, b) => a + b, 0);
+  const contractParts = loads.map((_, i) => Math.floor(totalContract * (weights[i] / sumW)));
+  const storageParts = loads.map((_, i) => Math.floor(totalStorage * (weights[i] / sumW)));
+  contractParts[loads.length - 1] += totalContract - contractParts.reduce((a, b) => a + b, 0);
+  storageParts[loads.length - 1] += totalStorage - storageParts.reduce((a, b) => a + b, 0);
+
+  return loads.map((load, i) => ({
+    agentId,
+    meterNo: load.meterNo ?? load.no,
+    siteName: load.name,
+    loadNo: load.no,
+    contractTransferKWh: contractParts[i],
+    storageTransferKWh: storageParts[i],
+  }));
+}
+
+/** 各代理人儲能移轉效益彙總（轉供發電量、轉供／儲能移轉／餘電及占比） */
+export function buildStorageBenefitAgentSummaries(
+  dateKeys: string[],
+  agentIdFilter = ALL_AGENTS_ID
+): StorageBenefitAgentSummary[] {
+  const scale = Math.max(1, dateKeys.length);
+  const dateKey = dateKeys[dateKeys.length - 1] ?? toDateInputValue();
+  const scoped = resolveScopedAgents(agentIdFilter);
+
+  return scoped.map((agent) => {
+    const base = hashUnit(`${dateKey}:st:agent:${agent.id}`);
+    const transferGenKWh = Math.round((120_000 + base * 80_000) * scale);
+    const storageTransferKWh = Math.round(transferGenKWh * (0.18 + hashUnit(`${dateKey}:st:sr:${agent.id}`) * 0.22));
+    const contractTransferKWh = Math.round(
+      transferGenKWh * (0.42 + hashUnit(`${dateKey}:st:cr:${agent.id}`) * 0.28)
+    );
+    const cappedContract = Math.min(contractTransferKWh, transferGenKWh - storageTransferKWh);
+    const surplusKWh = Math.max(0, transferGenKWh - cappedContract - storageTransferKWh);
+
+    return {
+      agentId: agent.id,
+      transferGenKWh,
+      contractTransferKWh: cappedContract,
+      storageTransferKWh,
+      surplusKWh,
+      contractTransferPct: pctOf(cappedContract, transferGenKWh),
+      storageTransferPct: pctOf(storageTransferKWh, transferGenKWh),
+      surplusPct: pctOf(surplusKWh, transferGenKWh),
+      dateKey,
+    };
+  });
+}
+
+/** 下鑽：指定代理人之用電電號轉供／儲能移轉明細 */
+export function buildStorageBenefitLoadDetails(
+  dateKeys: string[],
+  agentId: number
+): StorageBenefitLoadDetail[] {
+  const summary = buildStorageBenefitAgentSummaries(dateKeys, String(agentId))[0];
+  if (!summary) return [];
+  const agent = AGENTS.find((a) => a.id === agentId);
+  if (!agent) return [];
+  return distributeKwhToLoads(
+    agent.loadList,
+    summary.contractTransferKWh,
+    summary.storageTransferKWh,
+    agentId
+  );
+}
+
+/** @deprecated 改用 buildStorageBenefitAgentSummaries */
 export function buildStorageBenefitRows(dateKeys: string[], agentIdFilter = ALL_AGENTS_ID): StorageBenefitRow[] {
   const scale = Math.max(1, dateKeys.length);
   const dateKey = dateKeys[dateKeys.length - 1] ?? toDateInputValue();

@@ -18,7 +18,8 @@ import {
   buildImbalanceSlotRows,
   buildRealtimeGenAlerts,
   buildSettlementAbnormal,
-  buildStorageBenefitRows,
+  buildStorageBenefitAgentSummaries,
+  buildStorageBenefitLoadDetails,
   enumerateDateKeys,
   formatQuerySummary,
   agentName,
@@ -27,6 +28,8 @@ import {
   type DateQueryMode,
   type DateQueryState,
   type MarketImbalanceRow,
+  type StorageBenefitAgentSummary,
+  type StorageBenefitLoadDetail,
 } from '@/lib/marketMonitoringData';
 import { useMemo, useState } from 'react';
 
@@ -145,6 +148,146 @@ function DateQueryToolbar({
       </div>
     </div>
   );
+}
+
+function kwhWithPct(kwh: number, pct: number) {
+  return (
+    <>
+      <span className="tabular-nums">{kwh.toLocaleString()}</span>
+      <span className="ml-1 text-xs font-bold text-slate-500">({pct.toFixed(1)}%)</span>
+    </>
+  );
+}
+
+function StorageTransferBenefitSection({
+  agentSummaries,
+  drillAgentId,
+  loadDetails,
+  onDrillAgent,
+  onBack,
+}: {
+  agentSummaries: StorageBenefitAgentSummary[];
+  drillAgentId: number | null;
+  loadDetails: StorageBenefitLoadDetail[];
+  onDrillAgent: (agentId: number) => void;
+  onBack: () => void;
+}) {
+  const thRow = 'bg-slate-100 text-slate-700 text-xs font-bold';
+  const td = 'px-3 py-2 text-sm text-slate-800 border-t border-slate-200';
+  const drillBtn =
+    'cursor-pointer tabular-nums font-bold text-indigo-800 underline-offset-2 hover:text-indigo-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
+
+  const totalGen = agentSummaries.reduce((s, r) => s + r.transferGenKWh, 0);
+  const totalContract = agentSummaries.reduce((s, r) => s + r.contractTransferKWh, 0);
+  const totalStorage = agentSummaries.reduce((s, r) => s + r.storageTransferKWh, 0);
+  const totalSurplus = agentSummaries.reduce((s, r) => s + r.surplusKWh, 0);
+
+  return (
+    <div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        {drillAgentId != null ? (
+          <Button type="button" size="sm" variant="outline" onClick={onBack}>
+            ← 返回代理人彙總
+          </Button>
+        ) : (
+          <p className="text-xs font-semibold text-slate-600">
+            點選「轉供電量」或「儲能移轉電量」可下鑽至用電電號明細
+          </p>
+        )}
+        <span className="text-xs font-bold text-slate-600">
+          {drillAgentId != null
+            ? `用電電號明細 · ${agentName(drillAgentId)}（${loadDetails.length} 筆）`
+            : `代理人彙總 · ${agentSummaries.length} 筆`}
+        </span>
+      </div>
+
+      {drillAgentId == null ? (
+        <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs font-semibold text-emerald-950">
+          <span className="font-black">整體儲能移轉狀態：</span>
+          轉供發電量合計 <span className="font-black tabular-nums">{totalGen.toLocaleString()}</span> kWh · 轉供電量{' '}
+          {kwhWithPct(totalContract, pctOf(totalContract, totalGen))} · 儲能移轉{' '}
+          {kwhWithPct(totalStorage, pctOf(totalStorage, totalGen))} · 餘電{' '}
+          {kwhWithPct(totalSurplus, pctOf(totalSurplus, totalGen))}
+          <span className="ml-1 text-emerald-800">（餘電＝轉供發電量 − 轉供電量 − 儲能移轉電量）</span>
+        </div>
+      ) : null}
+
+      <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        {drillAgentId == null ? (
+          <table className="min-w-[920px] w-full">
+            <thead className={thRow}>
+              <tr>
+                <th className="px-3 py-2 text-left">代理人</th>
+                <th className="px-3 py-2 text-right">轉供發電量（kWh）</th>
+                <th className="px-3 py-2 text-right">轉供電量（kWh）</th>
+                <th className="px-3 py-2 text-right">儲能移轉電量（kWh）</th>
+                <th className="px-3 py-2 text-right">餘電（kWh）</th>
+              </tr>
+            </thead>
+            <tbody>
+              {agentSummaries.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-3 py-8 text-center text-sm font-semibold text-slate-500">
+                    所選區間內無資料
+                  </td>
+                </tr>
+              ) : (
+                agentSummaries.map((row) => (
+                  <tr key={row.agentId} className="font-semibold">
+                    <td className={td}>{agentName(row.agentId)}</td>
+                    <td className={`${td} text-right tabular-nums`}>{row.transferGenKWh.toLocaleString()}</td>
+                    <td className={`${td} text-right`}>
+                      <button type="button" className={drillBtn} onClick={() => onDrillAgent(row.agentId)}>
+                        {kwhWithPct(row.contractTransferKWh, row.contractTransferPct)}
+                      </button>
+                    </td>
+                    <td className={`${td} text-right`}>
+                      <button type="button" className={drillBtn} onClick={() => onDrillAgent(row.agentId)}>
+                        {kwhWithPct(row.storageTransferKWh, row.storageTransferPct)}
+                      </button>
+                    </td>
+                    <td className={`${td} text-right text-amber-900`}>
+                      {kwhWithPct(row.surplusKWh, row.surplusPct)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        ) : (
+          <table className="min-w-[640px] w-full">
+            <thead className={thRow}>
+              <tr>
+                <th className="px-3 py-2 text-left">用電電號</th>
+                <th className="px-3 py-2 text-left">案場</th>
+                <th className="px-3 py-2 text-right">轉供電量（kWh）</th>
+                <th className="px-3 py-2 text-right">儲能移轉電量（kWh）</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadDetails.map((row) => (
+                <tr key={`${row.agentId}-${row.meterNo}`} className="font-semibold">
+                  <td className={td}>
+                    <span className="font-mono">{row.loadNo}</span>
+                    <span className="ml-1 text-xs text-slate-500">表號 {row.meterNo}</span>
+                  </td>
+                  <td className={td}>{row.siteName}</td>
+                  <td className={`${td} text-right tabular-nums`}>{row.contractTransferKWh.toLocaleString()}</td>
+                  <td className={`${td} text-right tabular-nums text-indigo-800`}>
+                    {row.storageTransferKWh.toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function pctOf(part: number, total: number): number {
+  return total > 0 ? Number(((part / total) * 100).toFixed(1)) : 0;
 }
 
 function ImbalanceReportTable({
@@ -296,6 +439,7 @@ export default function MarketMonitoringDashboardPage() {
   const [pageQuery, setPageQuery] = useState<DateQueryState>(defaultPageQuery);
   const [settlementQuery, setSettlementQuery] = useState<DateQueryState>(defaultPageQuery);
   const [imbalanceDrillDate, setImbalanceDrillDate] = useState<string | null>(null);
+  const [storageBenefitDrillAgentId, setStorageBenefitDrillAgentId] = useState<number | null>(null);
 
   const pageDateKeys = useMemo(() => enumerateDateKeys(pageQuery), [pageQuery]);
   const settlementDateKeys = useMemo(() => enumerateDateKeys(settlementQuery), [settlementQuery]);
@@ -317,9 +461,16 @@ export default function MarketMonitoringDashboardPage() {
     () => buildSettlementAbnormal(settlementDateKeys, settlementQuery.agentId),
     [settlementDateKeys, settlementQuery.agentId],
   );
-  const storageBenefitRows = useMemo(
-    () => buildStorageBenefitRows(settlementDateKeys, settlementQuery.agentId),
+  const storageBenefitAgentSummaries = useMemo(
+    () => buildStorageBenefitAgentSummaries(settlementDateKeys, settlementQuery.agentId),
     [settlementDateKeys, settlementQuery.agentId],
+  );
+  const storageBenefitLoadDetails = useMemo(
+    () =>
+      storageBenefitDrillAgentId != null
+        ? buildStorageBenefitLoadDetails(settlementDateKeys, storageBenefitDrillAgentId)
+        : [],
+    [settlementDateKeys, storageBenefitDrillAgentId],
   );
   const imbalanceDailyRows = useMemo(
     () => buildImbalanceDailyRows(settlementDateKeys, settlementQuery.agentId),
@@ -329,6 +480,7 @@ export default function MarketMonitoringDashboardPage() {
   const handleSettlementQueryChange = (next: DateQueryState) => {
     setSettlementQuery(next);
     setImbalanceDrillDate(null);
+    setStorageBenefitDrillAgentId(null);
   };
 
   const sectionShell = 'rounded-2xl border border-slate-300 bg-white p-5 shadow-sm';
@@ -584,42 +736,18 @@ export default function MarketMonitoringDashboardPage() {
 
             <div className="mt-4 space-y-4">
               <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                <p className="text-sm font-bold text-slate-900">
-                  {'\uff081\uff09\u5132\u80fd\u79fb\u8f49\u6548\u76ca'}
-                </p>
+                <p className="text-sm font-bold text-slate-900">（1）儲能移轉效益</p>
                 <p className="mt-1 text-xs font-semibold text-slate-600">
-                  {
-                    '\u4f9d\u6aa2\u6838\u901a\u904e\u4e4b\u5206\u914d\u7d50\u679c\uff0c\u8a08\u7b97\u5404\u96fb\u865f\u8f49\u4f9b\u96fb\u91cf\u53ca\u5132\u80fd\u79fb\u8f49\u96fb\u91cf\u6bd4\u4f8b\u3002'
-                  }
+                  各代理人代理資源之轉供發電量、轉供電量、儲能移轉電量及餘電彙總；占比以轉供發電量為分母。餘電＝轉供發電量
+                  − 轉供電量 − 儲能移轉電量。
                 </p>
-                <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
-                  <table className="min-w-[520px] w-full">
-                    <thead className={thRow}>
-                      <tr>
-                        <th className="px-3 py-2 text-left">{'\u96fb\u865f'}</th>
-                        <th className="px-3 py-2 text-right">{'\u8f49\u4f9b\u96fb\u91cf\uff08kWh\uff09'}</th>
-                        <th className="px-3 py-2 text-right">
-                          {'\u5132\u80fd\u79fb\u8f49\u96fb\u91cf\uff08kWh\uff09'}
-                        </th>
-                        <th className="px-3 py-2 text-right">{'\u6bd4\u4f8b\uff08%\uff09'}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {storageBenefitRows.map((r) => (
-                        <tr key={r.meterNo} className="font-semibold">
-                          <td className={td}>{r.meterNo}</td>
-                          <td className={`${td} text-right tabular-nums`}>{r.transferKWh.toLocaleString()}</td>
-                          <td className={`${td} text-right tabular-nums text-indigo-800`}>
-                            {r.storageTransferKWh.toLocaleString()}
-                          </td>
-                          <td className={`${td} text-right tabular-nums text-emerald-800`}>
-                            {r.ratioPct.toFixed(1)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <StorageTransferBenefitSection
+                  agentSummaries={storageBenefitAgentSummaries}
+                  drillAgentId={storageBenefitDrillAgentId}
+                  loadDetails={storageBenefitLoadDetails}
+                  onDrillAgent={setStorageBenefitDrillAgentId}
+                  onBack={() => setStorageBenefitDrillAgentId(null)}
+                />
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
